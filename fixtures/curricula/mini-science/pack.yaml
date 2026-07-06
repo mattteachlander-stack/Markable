@@ -1,0 +1,86 @@
+# Miniature curriculum pack fixture — 10 outcomes across two levels.
+# Used by future Part 2 (curriculum + tag) tests. Not consumed in Phase 1.
+# Shape mirrors the illustrative pack.yaml in PROJECT_BRIEF.md section 9.1.
+curriculum: Mini Science (fixture)
+version: "0.1"
+levels: ["8", "9"]
+dimensions:
+  - id: SU
+    name: Science Understanding
+  - id: SI
+    name: Science Inquiry
+  - id: SHE
+    name: Science as a Human Endeavour
+outcomes:
+  - code: MS8U01
+    level: "8"
+    dimension: SU
+    strand: Chemical sciences
+    description: describe the difference between physical and chemical change
+    elaborations:
+      - classifying everyday changes as physical or chemical
+  - code: MS8U02
+    level: "8"
+    dimension: SU
+    strand: Chemical sciences
+    description: identify the reactants and products of a simple reaction
+  - code: MS9U01
+    level: "9"
+    dimension: SU
+    strand: Chemical sciences
+    description: explain how temperature affects the rate of a chemical reaction
+    elaborations:
+      - relating rate to collision frequency and activation energy
+  - code: MS9U02
+    level: "9"
+    dimension: SU
+    strand: Chemical sciences
+    description: use the law of conservation of mass to balance simple equations
+  - code: MS9U03
+    level: "9"
+    dimension: SU
+    strand: Chemical sciences
+    description: describe exothermic and endothermic reactions in terms of energy
+  - code: MS9U04
+    level: "9"
+    dimension: SU
+    strand: Physical sciences
+    description: describe energy transfer and transformation in simple systems
+  - code: MS9I01
+    level: "9"
+    dimension: SI
+    strand: Planning and conducting
+    description: plan a fair test identifying independent and dependent variables
+  - code: MS9I02
+    level: "9"
+    dimension: SI
+    strand: Processing, modelling and analysis
+    description: select and construct appropriate representations of data
+  - code: MS9I03
+    level: "9"
+    dimension: SI
+    strand: Evaluating
+    description: identify sources of error and suggest improvements to a method
+  - code: MS9H01
+    level: "9"
+    dimension: SHE
+    strand: Use and influence of science
+    description: describe how chemical knowledge is applied in everyday contexts
+achievement_standards:
+  - level: "9"
+    statements:
+      - id: MS-AS9-01
+        maps_to: [MS9U01, MS9U03]
+        text: >-
+          explains the effect of temperature on reaction rate and distinguishes
+          exothermic from endothermic reactions
+      - id: MS-AS9-02
+        maps_to: [MS9I01, MS9I03]
+        text: plans fair tests and evaluates sources of error
+misconception_library:
+  - id: MSC-01
+    outcome_codes: [MS9U02]
+    text: believes mass is lost when a gas is produced in a reaction
+  - id: MSC-02
+    outcome_codes: [MS9U01]
+    text: thinks stirring changes the rate because it "adds energy" rather than increasing contact

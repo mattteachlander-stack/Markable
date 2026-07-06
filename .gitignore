@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+# Python build artifacts at the repo root only — NOT src/markable/build/ (a package).
+/build/
+/dist/
+.venv/
+venv/
+
+# uv
+uv.lock.orig
+
+# Testing / caching
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Markable working output — generated assessment packages are not source.
+# Keep the folder shape but never commit real papers, keys, scripts, or scans.
+/packages/
+/scans/
+/students/
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Local secrets
+.env

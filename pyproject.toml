@@ -1,0 +1,50 @@
+[project]
+name = "markable"
+version = "0.1.0"
+description = "Assessment preparation, AI-marking, and curriculum-intelligence pipeline for paper-based school assessments."
+authors = [{ name = "Matthew Lander" }]
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "typer>=0.12",
+    "rich>=13.7",
+    "pydantic>=2.7",
+    "pyyaml>=6.0",
+    "segno>=1.6",
+    "typst>=0.11",
+    "pillow>=10.3",
+]
+
+[project.optional-dependencies]
+# Scan-time libraries are only needed from Phase 2 onwards (`markable scan`).
+# Kept out of the core install so Phase 1 stays lean.
+scan = [
+    "pypdf>=4.2",
+    "pdf2image>=1.17",
+    "opencv-python-headless>=4.9",
+    "pyzbar>=0.1.9",
+]
+# AI-assisted ingestion of .docx/.pdf drafts and (later) the marking engine.
+ai = [
+    "anthropic>=0.34",
+]
+
+[project.scripts]
+markable = "markable.cli:app"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.2",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/markable"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

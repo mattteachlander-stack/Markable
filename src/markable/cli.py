@@ -138,27 +138,129 @@ def build(
 
 @app.command()
 def scan(
-    package: Path = typer.Argument(..., help="Assessment package."),
-    pdfs: list[Path] = typer.Argument(None, help="Scanned script PDF(s)."),
+    package: Path = typer.Argument(..., exists=True, help="Assessment package."),
+    pdfs: list[Path] = typer.Argument(..., help="Scanned script PDF(s) or page images."),
+    dpi: float = typer.Option(300.0, help="Nominal resolution of the scans."),
+    id_map: Optional[Path] = typer.Option(
+        None,
+        "--id-map",
+        help="YAML mapping scans to student ids: '<file.pdf>: S1042' (whole file) "
+        "or '<file.pdf>:<page>: S1042' (per page).",
+    ),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Non-interactive: leave unknown ids unassigned."),
 ) -> None:
-    """[Phase 2] Split, deskew, and match scanned scripts to students + zones."""
-    _phase_stub("scan", "Phase 2", "split/deskew scans, read QR, crop answer zones via the manifest")
+    """Split, deskew, and match scanned scripts; crop every answer zone."""
+    try:
+        from .scan import scan_package
+    except ImportError:
+        console.print(
+            "[red]Scan dependencies missing.[/red] Install them with: uv sync --extra scan"
+        )
+        raise typer.Exit(code=1)
+
+    mapping = None
+    if id_map is not None:
+        import yaml as _yaml
+
+        mapping = _yaml.safe_load(id_map.read_text(encoding="utf-8")) or {}
+
+    last: dict = {"sid": None, "page": 0}
+
+    def interactive_resolver(source: str, index: int, page_number: int, id_crop) -> Optional[str]:
+        # Heuristic default: consecutive pages of the same script arrive in
+        # order, so if the paper page number advanced, offer the previous id.
+        default = last["sid"] if last["sid"] and page_number > last["page"] else None
+        hint = f" [dim](ID box image: {id_crop})[/dim]" if id_crop else ""
+        console.print(f"  {source} page {index} → paper page {page_number}{hint}")
+        answer = typer.prompt("  Student ID", default=default or "", show_default=bool(default))
+        answer = answer.strip() or None
+        last["sid"], last["page"] = answer, page_number
+        return answer
+
+    report = scan_package(
+        package,
+        pdfs,
+        dpi=dpi,
+        id_map=mapping,
+        id_resolver=None if yes else interactive_resolver,
+    )
+
+    ok = sum(1 for p in report.pages if p.status.value == "ok")
+    console.print(
+        f"[green]✓[/green] {ok}/{len(report.pages)} pages matched → "
+        f"{len(report.students)} student(s) · scan_report.json written"
+    )
+    for p in report.pages:
+        if p.status.value != "ok":
+            console.print(f"  [yellow]{p.status.value}[/yellow] {p.source} p{p.source_index}: {p.detail or ''}")
+    for s in report.students:
+        if s.pages_missing:
+            console.print(f"  [yellow]{s.student_id} missing pages {s.pages_missing}[/yellow]")
+        if s.blank_questions:
+            console.print(f"  [dim]{s.student_id} blank: {', '.join(s.blank_questions)}[/dim]")
 
 
 @app.command()
-def mark(package: Path = typer.Argument(..., help="Assessment package.")) -> None:
-    """[Phase 2] AI-mark all matched scripts, per question."""
-    _phase_stub("mark", "Phase 2/3", "batch cropped responses per question and mark against key.yaml")
+def mark(
+    package: Path = typer.Argument(..., exists=True, help="Assessment package."),
+    model: str = typer.Option("claude-opus-4-8", help="Anthropic model id."),
+    batch: bool = typer.Option(False, "--batch", help="Use the Message Batches API (cheaper for whole classes)."),
+) -> None:
+    """AI-mark all scanned scripts, per question, against key.yaml."""
+    from .mark import run_mark
+
+    try:
+        from .mark.anthropic_marker import AnthropicMarker
+
+        marker = AnthropicMarker(model=model, use_batches=batch)
+    except RuntimeError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
+
+    run = run_mark(package, marker)
+    marked = sum(1 for j in run.judgements if j.status.value == "marked")
+    review = sum(1 for j in run.judgements if j.status.value == "review")
+    errors = sum(1 for j in run.judgements if j.status.value == "error")
+    console.print(
+        f"[green]✓[/green] {marked}/{len(run.judgements)} responses marked · "
+        f"{review} in review queue" + (f" · [red]{errors} errors[/red]" if errors else "")
+    )
+    if review:
+        console.print(f"  Review queue → [bold]{package / 'review.html'}[/bold], record final marks in review_overrides.yaml")
 
 
 @app.command()
 def report(
-    package: Path = typer.Argument(..., help="Assessment package."),
+    package: Path = typer.Argument(..., exists=True, help="Assessment package."),
     curriculum: Optional[str] = typer.Option(None, help="[Phase 6] Standards-referenced reporting."),
     dashboard: bool = typer.Option(False, help="[Phase 8] Emit the self-contained HTML dashboard."),
 ) -> None:
-    """[Phase 4] Scores, feedback sheets, item analysis, star-schema export."""
-    _phase_stub("report", "Phase 4", "results.csv, item analysis, feedback sheets, fact_response + dims")
+    """Scores, item analysis, teacher summary, star-schema export."""
+    if curriculum:
+        _phase_stub("report --curriculum", "Phase 6", "standards-referenced reporting needs Part 2 tagging")
+    if dashboard:
+        _phase_stub("report --dashboard", "Phase 8", "self-contained HTML dashboard")
+
+    from .report import run_report
+
+    try:
+        result = run_report(package)
+    except FileNotFoundError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
+
+    console.print(
+        f"[green]✓[/green] Reported {result['judgements']} judgements for "
+        f"{result['students']} student(s)"
+    )
+    console.print("  results.csv · totals.csv · item_analysis.csv · summary.md · export/ (star schema)")
+    if result["overrides_applied"]:
+        console.print(f"  {result['overrides_applied']} teacher override(s) applied")
+    if result["still_in_review"]:
+        console.print(
+            f"  [yellow]{result['still_in_review']} judgement(s) still unreviewed[/yellow] — "
+            "finalise them in review_overrides.yaml and re-run report"
+        )
 
 
 @app.command()

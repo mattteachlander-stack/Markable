@@ -17,8 +17,6 @@ from pathlib import Path
 from ..models import BBox, QuestionType
 from ..qr import write_png
 from .layout import (
-    ID_BOX_H,
-    ID_BOX_W,
     LaidOutPaper,
     LaidOutPage,
     MARGIN,
@@ -27,6 +25,7 @@ from .layout import (
     QR_Y,
     REG_SIZE,
     HEADER_TOP,
+    id_box_bbox,
 )
 
 
@@ -105,13 +104,14 @@ def _header(paper: LaidOutPaper, page: LaidOutPage, qr_rel: str) -> str:
         f"#text(size: 9pt)[Page {page.number} of {len(paper.pages)}]",
     )
     # Student-ID box (handwritten id box; a pre-printed grid is a future option).
-    id_x = QR_X - ID_BOX_W - 6
+    # Geometry comes from layout.id_box_bbox() — the same bbox the manifest records.
+    idb = id_box_bbox()
     out += _place(
-        id_x,
-        HEADER_TOP,
-        f"#rect(width: {_mm(ID_BOX_W)}, height: {_mm(ID_BOX_H)}, stroke: 0.5pt)[]",
+        idb.x,
+        idb.y,
+        f"#rect(width: {_mm(idb.w)}, height: {_mm(idb.h)}, stroke: 0.5pt)[]",
     )
-    out += _label(id_x + 1.5, HEADER_TOP + 1.5, "Student ID", size=7)
+    out += _label(idb.x + 1.5, idb.y + 1.5, "Student ID", size=7)
     # QR (top-right).
     out += _place(QR_X, QR_Y, f"#image(\"{qr_rel}\", width: {_mm(QR_SIZE)})")
     return out

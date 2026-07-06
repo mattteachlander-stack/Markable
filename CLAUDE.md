@@ -15,21 +15,27 @@ be marked reliably and auditably. Three parts, built strictly in order:
 - **Part 2 (Phases 5–7):** curriculum intelligence — `curriculum`, `tag`, standards reports.
 - **Part 3 (Phases 8–9):** dashboards — local HTML + Power BI export.
 
-**Current status: Phase 1 only.** `ingest` and `build` are implemented. Everything
-else is a CLI stub that names its phase and exits non-zero. **Do not write any
-marking (`mark`) or scanning (`scan`) code until the Phase 1 print/scan round trip
-is validated** (brief §11.3).
+**Current status: Part 1 implemented (Phases 1–4 core).** `ingest`, `build`,
+`scan`, `mark`, and `report` are all functional. The brief's §11.3 gate ("no
+marking code before a physical print/scan round trip") was **explicitly waived
+by the project owner on 2026-07-06**; the offline *digital* round trip in
+`tests/test_scan_roundtrip.py` (build → rasterize → deskew → QR → crop,
+including a 180°-rotated noisy scan) stands in for it. **Still outstanding
+before first real class use:** a physical print → photocopy → scanner pass, and
+the Phase 2 accuracy validation (≥99% MCQ agreement, ≥95% within-1-mark short
+answers) against a hand-marked set. Part 2/3 commands remain stubs.
 
 ## The pipeline (command contract)
 
 ```
-markable ingest <draft>   → assessment.yaml        (Phase 1 ✓)
-markable build  <package> → paper.pdf + key.yaml + manifest.json   (Phase 1 ✓)
-markable scan   <package> <pdfs>                    (Phase 2 — stub)
-markable mark   <package>                           (Phase 2/3 — stub)
-markable report <package>                           (Phase 4 — stub)
+markable ingest <draft>   → assessment.yaml                          ✓
+markable build  <package> → paper.pdf + key.yaml + manifest.json     ✓
+markable scan   <package> <pdfs|imgs> → scripts/<sid>/<qid>.png + scan_report.json  ✓
+markable mark   <package> → marks.json + review.html (needs `ai` extra + API key)  ✓
+markable report <package> → results/totals/item_analysis.csv + summary.md + export/ ✓
 markable tag        <package> --curriculum <id>     (Phase 5 — stub)
 markable curriculum import|list                     (Phase 5 — stub)
+markable report --curriculum|--dashboard            (Phase 6/8 — stub)
 ```
 
 Each command is independently runnable and reads/writes files in the **Assessment
@@ -49,7 +55,20 @@ src/markable/
     layout.py          # deterministic geometry engine (mm) — the crux
     typst_render.py    # layout → paper.typ → paper.pdf (typst pkg)
     keypack.py         # assessment → key.yaml scaffold
-    manifest.py        # layout → manifest.json (answer-zone bboxes)
+    manifest.py        # layout → manifest.json (answer-zone + id-box bboxes)
+  scan/
+    __init__.py        # scan_package() orchestrator + student-id resolution
+    pdfio.py           # PDF/image → grayscale pages (pypdfium2 — no poppler)
+    register.py        # fiducial detection + homography deskew onto the mm grid
+    qr_read.py         # OpenCV QR decode w/ retry ladder (no system zbar)
+    crop.py            # manifest bbox → PNG crops + blank-ink heuristic
+  mark/
+    __init__.py        # run_mark(): per-question cohort batching + review rules
+    anthropic_marker.py# Claude vision marker (`ai` extra) — cached key context,
+                       # structured-output judgements, optional Batches API
+    review.py          # review.html + review_overrides.yaml scaffold
+  report.py            # results/totals/item_analysis CSVs, summary.md,
+                       # review-override merge, star-schema export/
   cli.py               # typer app wiring all commands
 
 fixtures/
@@ -58,7 +77,11 @@ fixtures/
 tests/                                 # pytest; no network, no API key required
 
 packages/<test-id>/    # BUILD OUTPUT (gitignored) — the Assessment Package:
-  assessment.yaml  key.yaml  paper.typ  paper.pdf  manifest.json  assets/  scripts/
+  assessment.yaml  key.yaml  paper.typ  paper.pdf  manifest.json  assets/
+  scripts/<sid>/<qid>.png   scan_report.json          # written by `scan`
+  marks.json  review.html  review_overrides.yaml      # written by `mark`
+  results.csv totals.csv item_analysis.csv summary.md # written by `report`
+  export/fact_response.csv + dim_*.csv                #   " (star schema, no names)
 ```
 
 **Data format discipline (brief §5):** YAML for human-edited files
@@ -124,17 +147,23 @@ Python ≥3.11, `uv`. Core deps: `typer`+`rich` (CLI), `pydantic` v2 (schemas),
 Scan-time libs (`pypdf`, `pdf2image`, `opencv`, `pyzbar`) live in the optional
 `scan` extra; the Anthropic SDK in the `ai` extra — neither is needed for Phase 1.
 
-External specifics to re-verify at build time against
-<https://docs.claude.com/en/api/overview> before writing `mark`: current model
-names, vision inputs, prompt caching, and the batch API.
+The marker was written against the API surface verified on 2026-07-06:
+model `claude-opus-4-8`, adaptive thinking, `output_config.format` structured
+outputs (assistant prefills are rejected on 4.6+), `cache_control` on the shared
+key/rubric system block, and the Message Batches API behind `--batch`. The scan
+extra deliberately avoids system libraries: OpenCV's QR detector instead of
+pyzbar/zbar, `pypdfium2` instead of pdf2image/poppler.
 
 ## Working commands
 
 ```bash
-uv sync                                              # install (core deps)
-uv run markable ingest fixtures/drafts/y9-chem-test.md -o /tmp/assessment.yaml -y
-uv run markable build packages/2026-T3-Y9-chem -a /tmp/assessment.yaml
-uv run pytest                                        # full suite, offline
+uv sync                                              # core + dev (incl. scan libs)
+uv run markable ingest fixtures/drafts/y9-chem-test.md -o packages/demo/assessment.yaml -y
+uv run markable build packages/demo
+uv run markable scan packages/demo scans/*.pdf --id-map ids.yaml   # or interactive
+uv run markable mark packages/demo [--batch]         # needs `ai` extra + ANTHROPIC_API_KEY
+uv run markable report packages/demo
+uv run pytest                                        # full suite, offline, no API key
 ```
 
 ## Conventions for future work
@@ -142,6 +171,11 @@ uv run pytest                                        # full suite, offline
 - Extend `models.py` first; treat the YAML/JSON on disk as serialisations of it.
 - Any new page element = new geometry in `layout.py` + matching Typst in
   `typst_render.py` + (if it's an answer zone) a `Zone` in `manifest.py`.
-- Keep each phase's code behind its command; don't let Phase 2+ logic leak into
-  Phase 1 modules. Stubs raise `typer.Exit(code=2)` via `_phase_stub`.
-- Tests must stay offline (no network, no API key). Fixtures drive everything.
+- Keep each phase's code behind its command; don't let Part 2+ logic leak into
+  Part 1 modules. Remaining stubs raise `typer.Exit(code=2)` via `_phase_stub`.
+- Tests must stay offline (no network, no API key). Fixtures drive everything;
+  the Anthropic marker is tested via `build_request` shape checks and an
+  injectable client, and the scan pipeline via the synthetic digital round trip.
+- Review rules live in `mark/__init__.py` (`_apply_review_rules`), not in
+  markers — any marker implementation gets thresholds/blank/ambiguity handling
+  for free.

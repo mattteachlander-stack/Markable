@@ -17,13 +17,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Scan-time libraries are only needed from Phase 2 onwards (`markable scan`).
-# Kept out of the core install so Phase 1 stays lean.
+# Scan-time libraries (`markable scan`). Kept out of the core install so the
+# ingest/build path stays lean. Self-contained wheels only: OpenCV's QR
+# detector replaces pyzbar (no system zbar), pypdfium2 replaces
+# pdf2image (no system poppler).
 scan = [
     "pypdf>=4.2",
-    "pdf2image>=1.17",
+    "pypdfium2>=4.30",
     "opencv-python-headless>=4.9",
-    "pyzbar>=0.1.9",
+    "numpy>=1.26",
 ]
 # AI-assisted ingestion of .docx/.pdf drafts and (later) the marking engine.
 ai = [
@@ -34,8 +36,14 @@ ai = [
 markable = "markable.cli:app"
 
 [dependency-groups]
+# Dev includes the scan-extra libs so the offline digital round-trip tests
+# (build → rasterize → scan → crop) always run in development.
 dev = [
     "pytest>=8.2",
+    "pypdf>=4.2",
+    "pypdfium2>=4.30",
+    "opencv-python-headless>=4.9",
+    "numpy>=1.26",
 ]
 
 [build-system]

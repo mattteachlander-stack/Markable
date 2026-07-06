@@ -205,6 +205,7 @@ class Page(BaseModel):
     height_mm: float
     registration: RegistrationMarks
     qr_payload: str  # exact string encoded in this page's QR (see qr.py)
+    id_box: Optional[BBox] = None  # student-ID box; read by `scan` via vision
     zones: list[Zone] = Field(default_factory=list)
 
 
@@ -218,6 +219,92 @@ class Manifest(BaseModel):
     version_hash: str
     total_pages: int
     pages: list[Page]
+
+
+# ---------------------------------------------------------------------------
+# Scan artifacts — scan_report.json
+# ---------------------------------------------------------------------------
+
+
+class PageStatus(str, Enum):
+    ok = "ok"
+    no_fiducials = "no_fiducials"  # registration marks not found; page skipped
+    no_qr = "no_qr"  # deskewed but QR unreadable; page skipped
+    wrong_test = "wrong_test"  # QR belongs to another test or paper version
+    unassigned = "unassigned"  # cropped, but no student id could be attached
+
+
+class CropRecord(BaseModel):
+    """One cropped answer zone written to scripts/<student>/<qid>.png."""
+
+    question_id: str
+    path: str  # relative to the package dir
+    ink_ratio: float = 0.0  # fraction of dark pixels inside the zone
+    blank: bool = False  # heuristic: flagged for the review queue, never judged
+
+
+class ScannedPage(BaseModel):
+    source: str  # input file name
+    source_index: int  # 1-based page index within the input file
+    status: PageStatus
+    page_number: Optional[int] = None  # paper page from the QR payload
+    student_id: Optional[str] = None
+    detail: Optional[str] = None
+    crops: list[CropRecord] = Field(default_factory=list)
+
+
+class StudentCoverage(BaseModel):
+    student_id: str
+    pages_found: list[int]
+    pages_missing: list[int]
+    blank_questions: list[str] = Field(default_factory=list)
+
+
+class ScanReport(BaseModel):
+    """`scan_report.json` — what matched, what didn't, what needs attention."""
+
+    test_id: str
+    version_hash: str
+    total_pages_expected: int
+    pages: list[ScannedPage]
+    students: list[StudentCoverage] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Marking artifacts — marks.json (brief section 4.4)
+# ---------------------------------------------------------------------------
+
+
+class JudgementStatus(str, Enum):
+    marked = "marked"  # confident; auto-finalisable
+    review = "review"  # below threshold / blank / ambiguous → review queue
+    error = "error"  # marker failed on this item; must be re-run or reviewed
+
+
+class Judgement(BaseModel):
+    """One structured marking judgement (the JSON contract in brief 4.4)."""
+
+    student: str
+    question: str
+    marks_awarded: float = 0.0
+    marks_available: float = 0.0
+    criteria_met: list[str] = Field(default_factory=list)
+    option_chosen: Optional[str] = None  # MCQ
+    transcription: str = ""
+    evidence: str = ""
+    feedback: str = ""
+    confidence: float = 0.0
+    status: JudgementStatus = JudgementStatus.review
+    review_reason: Optional[str] = None
+
+
+class MarkRun(BaseModel):
+    """`marks.json` — all judgements from one `markable mark` run."""
+
+    test_id: str
+    version_hash: str
+    marker: str  # e.g. anthropic model id, or "fake" in tests
+    judgements: list[Judgement]
 
 
 # ---------------------------------------------------------------------------

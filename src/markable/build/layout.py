@@ -61,6 +61,12 @@ BLOCK_GAP = 7.0
 MCQ_BUBBLE_D = 6.0  # bubble diameter
 
 
+def id_box_bbox() -> BBox:
+    """Student-ID box in the header — same bbox drawn by typst_render and
+    recorded in the manifest so `scan` can crop it for vision ID reading."""
+    return BBox(x=QR_X - ID_BOX_W - 6.0, y=HEADER_TOP, w=ID_BOX_W, h=ID_BOX_H)
+
+
 def registration_marks() -> RegistrationMarks:
     return RegistrationMarks(
         top_left=(REG_OFFSET, REG_OFFSET),

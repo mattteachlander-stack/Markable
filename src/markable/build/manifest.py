@@ -9,7 +9,7 @@ registration marks.
 from __future__ import annotations
 
 from ..models import Assessment, Manifest, Page, Zone
-from .layout import LaidOutPaper
+from .layout import LaidOutPaper, id_box_bbox
 
 
 def build_manifest(assessment: Assessment, paper: LaidOutPaper, version_hash: str) -> Manifest:
@@ -31,6 +31,7 @@ def build_manifest(assessment: Assessment, paper: LaidOutPaper, version_hash: st
                 height_mm=paper.page_h,
                 registration=lp.registration,
                 qr_payload=lp.qr_payload,
+                id_box=id_box_bbox(),
                 zones=zones,
             )
         )

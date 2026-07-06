@@ -5,21 +5,19 @@ Assessment preparation, AI-marking, and curriculum-intelligence pipeline for
 scan-friendly, machine-markable paper plus a structured marking pack, so scanned
 scripts can later be marked reliably, per-question, and auditably.
 
-> **Status: Phase 1.** `ingest` and `build` work end-to-end. `scan`, `mark`,
-> `report`, `curriculum`, and `tag` are stubs. See `PROJECT_BRIEF.md` for the
+> **Status: Part 1 implemented.** `ingest`, `build`, `scan`, `mark`, and
+> `report` work end-to-end (validated by an offline digital round trip;
+> a physical print/scan pass and marking-accuracy validation against a
+> hand-marked set are still recommended before first real class use).
+> `curriculum` and `tag` (Part 2) are stubs. See `PROJECT_BRIEF.md` for the
 > full vision and `CLAUDE.md` for the locked-in architecture.
 
 ## Install
 
 ```bash
-uv sync
-```
-
-Optional extras (not needed for Phase 1):
-
-```bash
-uv sync --extra scan   # pypdf, pdf2image, opencv, pyzbar — for `scan` (Phase 2)
-uv sync --extra ai     # anthropic SDK — AI ingestion / marking
+uv sync                # core deps (dev sync includes the scan libraries)
+uv sync --extra scan   # opencv + pypdfium2 + pypdf — for `markable scan`
+uv sync --extra ai     # anthropic SDK — for `markable mark`
 ```
 
 ## Quick start
@@ -41,8 +39,23 @@ uv run markable build packages/demo
 #     scripts/          populated later by `scan`
 ```
 
-Print `paper.pdf`, have students sit the test on paper, scan the scripts — then
-Phase 2 (`scan` + `mark`) will match and mark them.
+```bash
+# 3. Match scanned scripts and crop every answer zone
+uv run markable scan packages/demo scans/period3.pdf --id-map ids.yaml
+#    (omit --id-map to assign student IDs interactively; any page order,
+#     upside-down pages, and photocopier skew are handled automatically)
+
+# 4. AI-mark, per question, against the refined key.yaml
+export ANTHROPIC_API_KEY=...   # requires: uv sync --extra ai
+uv run markable mark packages/demo --batch
+#    → marks.json; anything uncertain lands in review.html — record your final
+#      marks in review_overrides.yaml (the teacher always owns the marks)
+
+# 5. Scores, item analysis, teacher summary, BI export
+uv run markable report packages/demo
+#    → results.csv, totals.csv, item_analysis.csv, summary.md,
+#      export/ (star schema: fact_response + dims, student IDs only — no names)
+```
 
 ### Draft format
 

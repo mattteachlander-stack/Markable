@@ -338,6 +338,69 @@ def tag(
 
 
 @app.command()
+def gradebook(
+    workbook: Path = typer.Argument(..., exists=True, help="Teacher SAC gradebook (.xlsx)."),
+    study_design: Optional[str] = typer.Option(
+        None, "--study-design", help="Curriculum/study-design pack id to map SAC questions against."
+    ),
+    map_file: Optional[Path] = typer.Option(
+        None, "--map", help="YAML {sac_number: {question_id: [codes]}} — teacher-confirmed mappings."
+    ),
+    out: Path = typer.Option(Path("sac_dashboard.html"), "-o", "--out", help="Output HTML file."),
+) -> None:
+    """Build a multi-SAC dashboard (+ skills mapping) from a marks spreadsheet."""
+    try:
+        from .gradebook import read_gradebook
+    except ImportError:
+        console.print("[red]Gradebook reading needs the 'xlsx' extra: uv sync --extra xlsx[/red]")
+        raise typer.Exit(code=1)
+
+    try:
+        gb = read_gradebook(workbook)
+    except (ValueError, RuntimeError) as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
+
+    skills = None
+    pack_name = ""
+    if study_design:
+        from .curriculum import CurriculumError, load_pack
+        from .gradebook_html import render_gradebook
+        from .studydesign import compute_skills
+
+        try:
+            pack = load_pack(study_design)
+        except CurriculumError as exc:
+            console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(code=1)
+        pack_name = f"{pack.curriculum} v{pack.version}"
+        teacher_map = None
+        if map_file is not None:
+            import yaml as _yaml
+
+            teacher_map = _yaml.safe_load(map_file.read_text(encoding="utf-8")) or {}
+        skills = [compute_skills(sac, pack, teacher_map) for sac in gb.sacs]
+    else:
+        from .gradebook_html import render_gradebook
+
+    out.write_text(render_gradebook(gb, skills, pack_name), encoding="utf-8")
+
+    table = Table(title=f"Parsed {gb.source}", show_edge=False)
+    for col in ("SAC", "Topic", "Questions", "Students", "Avg"):
+        table.add_column(col)
+    for sac in gb.sacs:
+        pct = [100 * sac.total_for(s) / sac.total_marks for s in sac.students if sac.total_marks]
+        table.add_row(str(sac.number), sac.topic, str(len(sac.questions)),
+                      str(len(sac.students)), f"{sum(pct)/len(pct):.0f}%")
+    console.print(table)
+    if skills:
+        mapped = sum(1 for sk in skills for m in sk.question_maps if m.codes)
+        total = sum(len(sk.question_maps) for sk in skills)
+        console.print(f"  study design: {mapped}/{total} questions mapped against {pack_name}")
+    console.print(f"[green]✓[/green] Dashboard → [bold]{out}[/bold] (single file — open in any browser)")
+
+
+@app.command()
 def analyse(
     source: Path = typer.Argument(..., exists=True, help="Assessment draft (.md) or an ingested package dir."),
     curriculum: str = typer.Option(..., help="Curriculum pack id (or a pack.yaml path)."),

@@ -1,0 +1,129 @@
+# VCE Biology Units 3 & 4 — REPRESENTATIVE study-design subset (proof of concept).
+#
+# ⚠ Modelled on the structure of the VCAA VCE Biology Study Design (key knowledge
+# by Area of Study + the Units 1-4 key science skills). Codes here are Markable's
+# own scheme (VCE-BIO-…), NOT official VCAA identifiers, and the key-knowledge
+# points are summarised, not verbatim. Verify against the current VCE Biology
+# Study Design before any official use. Production path: import the real study
+# design once VCAA structured data / a teacher-approved pack is available.
+curriculum: VCE Biology Units 3 & 4 (representative subset)
+version: "2022-poc"
+levels: ["U3", "U4"]
+dimensions:
+  - id: KK
+    name: Key knowledge
+  - id: KSS
+    name: Key science skills
+outcomes:
+  # ---- Unit 3 AoS 1 · How do cellular processes work? ----------------------
+  - code: VCE-BIO-U3A1-01
+    level: "U3"
+    dimension: KK
+    strand: U3 AoS1 · Cellular processes
+    topic: Nucleic acids & proteins
+    description: >-
+      the structure and role of nucleic acids and proteins, including the gene
+      to protein pathway (transcription, translation) and gene regulation
+    elaborations: [dna, rna, gene, protein, transcription, translation, amino acid]
+  - code: VCE-BIO-U3A1-02
+    level: "U3"
+    dimension: KK
+    strand: U3 AoS1 · Cellular processes
+    topic: Enzymes & regulation
+    description: >-
+      the role of enzymes and coenzymes in biochemical pathways, and factors
+      affecting enzyme activity
+    elaborations: [enzyme, coenzyme, substrate, active site, catalyst, inhibitor]
+  - code: VCE-BIO-U3A1-03
+    level: "U3"
+    dimension: KK
+    strand: U3 AoS1 · Cellular processes
+    topic: Photosynthesis
+    description: >-
+      the inputs, outputs and locations of photosynthesis as a biochemical
+      pathway, and factors affecting its rate
+    elaborations: [photosynthesis, chloroplast, light, glucose, rate]
+  - code: VCE-BIO-U3A1-04
+    level: "U3"
+    dimension: KK
+    strand: U3 AoS1 · Cellular processes
+    topic: Cellular respiration
+    description: >-
+      the inputs, outputs and locations of aerobic and anaerobic cellular
+      respiration, and factors affecting its rate
+    elaborations: [respiration, mitochondria, atp, glucose, oxygen, fermentation]
+  # ---- Unit 3 AoS 2 · How do cells respond to challenges? ------------------
+  - code: VCE-BIO-U3A2-01
+    level: "U3"
+    dimension: KK
+    strand: U3 AoS2 · Responding to antigens
+    topic: Signalling & pathogens
+    description: >-
+      cellular signalling, and the nature of cellular and non-cellular
+      pathogens that challenge an organism
+    elaborations: [signal, pathogen, antigen, receptor, molecule]
+  - code: VCE-BIO-U3A2-02
+    level: "U3"
+    dimension: KK
+    strand: U3 AoS2 · Responding to antigens
+    topic: Innate & adaptive immunity
+    description: >-
+      the components and roles of the innate and adaptive immune responses,
+      including humoral and cell-mediated immunity
+    elaborations: [immune, innate, adaptive, antibody, lymphocyte, inflammation]
+  - code: VCE-BIO-U3A2-03
+    level: "U3"
+    dimension: KK
+    strand: U3 AoS2 · Responding to antigens
+    topic: Immune dysfunction & technologies
+    description: >-
+      immune dysfunction and the application of immunological technologies such
+      as vaccines and monoclonal antibodies
+    elaborations: [vaccine, immunotherapy, allergy, autoimmune]
+  # ---- Unit 4 AoS 3 · Practical investigation (key science skills) ----------
+  - code: VCE-BIO-KSS-01
+    level: "U4"
+    dimension: KSS
+    strand: Key science skills · Investigation design
+    topic: Questions, aims & hypotheses
+    description: >-
+      develop aims and questions, formulate hypotheses and make predictions
+    elaborations: [research question, aim, hypothesis, prediction]
+  - code: VCE-BIO-KSS-02
+    level: "U4"
+    dimension: KSS
+    strand: Key science skills · Investigation design
+    topic: Planning & conducting
+    description: >-
+      plan and conduct investigations — identify variables, select methodology
+      and materials, and comply with safety and ethical guidelines
+    elaborations: [variable, method, methodology, materials, risk, safety, logbook, experiment]
+  - code: VCE-BIO-KSS-03
+    level: "U4"
+    dimension: KSS
+    strand: Key science skills · Data & analysis
+    topic: Generate & record data
+    description: >-
+      generate, collate and record data using appropriate representations such
+      as tables and graphs
+    elaborations: [results, table, graph, data, record, logbook]
+  - code: VCE-BIO-KSS-04
+    level: "U4"
+    dimension: KSS
+    strand: Key science skills · Data & analysis
+    topic: Analyse & evaluate
+    description: >-
+      analyse and evaluate data, identify trends, errors and limitations, and
+      evaluate the quality of evidence and the hypothesis
+    elaborations: [analyse, analyses, trend, evaluate, evaluates, error, quality, modification, discussion]
+  - code: VCE-BIO-KSS-05
+    level: "U4"
+    dimension: KSS
+    strand: Key science skills · Conclusions & communication
+    topic: Conclusions & communication
+    description: >-
+      construct evidence-based conclusions and communicate scientific ideas
+      using appropriate scientific conventions and language
+    elaborations: [conclusion, communication, scientific, extension, word count, intro]
+achievement_standards: []
+misconception_library: []

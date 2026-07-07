@@ -43,7 +43,16 @@ markable tag    <package> --curriculum <id> [--map tags.yaml]              ✓
 markable report <package> --curriculum <id> → curriculum_report.html + CSVs ✓
 markable report <package> --dashboard → dashboard.html (Tier 1, electric green) ✓
 markable analyse <draft|package> --curriculum <id> → test_analysis.html + CSV ✓
+markable gradebook <xlsx> [--study-design <id> --map sacmap.yaml] → sac_dashboard.html ✓
 ```
+
+`gradebook` is a *marks-already-exist* path (no scanning): it reads a teacher's
+per-SAC spreadsheet (question × student grid) and renders a tabbed single-file
+dashboard — Overview (cohort + every student across every SAC), one tab per SAC
+(question × cohort-quartile analysis), and, with `--study-design`, a Skills &
+content tab mapping each SAC question to study-design areas per student (prac
+criterion columns auto-map to key science skills; content SACs use a teacher
+`--map`). Needs the `xlsx` extra.
 
 `analyse` is the teacher-facing proof of concept: point it at a draft and get a
 per-item table (marks · strand/concept area · VCAA/ACARA code · Bloom's level ·
@@ -89,6 +98,9 @@ src/markable/
   analysis.py          # `analyse`: item → code/Bloom's/skill mapping + HTML/CSV
   dashboard_html.py    # `report --dashboard`: Tier 1 single-file dashboard
                        # (validated electric-green ramp)
+  gradebook.py         # read teacher SAC xlsx → Gradebook/SAC/GradeStudent (xlsx extra)
+  studydesign.py       # map SAC questions → study-design codes → per-student attainment
+  gradebook_html.py    # tabbed single-file SAC dashboard (overview/per-SAC/skills)
   cli.py               # typer app wiring all commands
 
 curricula/<pack-id>/   # imported packs: pack.yaml + source_meta.json

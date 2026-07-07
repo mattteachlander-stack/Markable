@@ -236,10 +236,29 @@ def report(
     dashboard: bool = typer.Option(False, help="[Phase 8] Emit the self-contained HTML dashboard."),
 ) -> None:
     """Scores, item analysis, teacher summary, star-schema export."""
-    if curriculum:
-        _phase_stub("report --curriculum", "Phase 6", "standards-referenced reporting needs Part 2 tagging")
     if dashboard:
         _phase_stub("report --dashboard", "Phase 8", "self-contained HTML dashboard")
+    if curriculum:
+        from .curriculum import CurriculumError, load_pack
+        from .standards import run_curriculum_report
+
+        try:
+            pack = load_pack(curriculum)
+            result = run_curriculum_report(package, pack)
+        except (CurriculumError, ValueError, FileNotFoundError) as exc:
+            console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(code=1)
+        console.print(
+            f"[green]✓[/green] Standards report: {result['outcomes_assessed']} outcome(s), "
+            f"{result['students']} student(s), {result['misconceptions']} misconception signal(s)"
+        )
+        console.print(f"  [bold]{result['html']}[/bold] (single file — open in any browser)")
+        console.print("  export/fact_attainment.csv · export/dim_outcome.csv")
+        if result["untagged_questions"]:
+            console.print(f"  [yellow]untagged questions excluded: {', '.join(result['untagged_questions'])}[/yellow]")
+        if result["outcomes_unassessed"]:
+            console.print(f"  coverage: {result['outcomes_unassessed']} outcome(s) at this level not yet assessed")
+        return
 
     from .report import run_report
 
@@ -265,26 +284,82 @@ def report(
 
 @app.command()
 def tag(
-    package: Path = typer.Argument(..., help="Assessment package."),
-    curriculum: str = typer.Option(..., help="Curriculum pack id, e.g. ac9-science."),
+    package: Path = typer.Argument(..., exists=True, help="Assessment package."),
+    curriculum: str = typer.Option(..., help="Curriculum pack id (or a pack.yaml path)."),
+    tag_map: Optional[Path] = typer.Option(
+        None, "--map", help="YAML of confirmed tags {Q1: [CODE, ...]} — non-interactive."
+    ),
 ) -> None:
-    """[Phase 5] Map each question to curriculum outcomes (interactive)."""
-    _phase_stub("tag", "Phase 5", "propose + confirm outcome codes per question against a pack")
+    """Map each question to curriculum outcomes (interactive confirm)."""
+    from .curriculum import CurriculumError, load_pack, run_tag
+
+    try:
+        pack = load_pack(curriculum)
+    except CurriculumError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
+
+    mapping = None
+    if tag_map is not None:
+        import yaml as _yaml
+
+        mapping = _yaml.safe_load(tag_map.read_text(encoding="utf-8")) or {}
+
+    def interactive(qid: str, proposals) -> list[str]:
+        console.print(f"\n[bold]{qid}[/bold] — proposals from {pack.curriculum}:")
+        if not proposals:
+            console.print("  [dim](no confident proposal — enter codes manually or leave blank)[/dim]")
+        for p in proposals:
+            console.print(f"  [cyan]{p.code}[/cyan]  score {p.score}  [dim]{p.justification}[/dim]")
+        default = proposals[0].code if proposals else ""
+        answer = typer.prompt("  Outcome codes (comma-separated, blank = none)", default=default)
+        return [c.strip() for c in answer.split(",") if c.strip()]
+
+    try:
+        assessment = run_tag(
+            package, pack,
+            resolver=None if mapping is not None else interactive,
+            tag_map=mapping,
+        )
+    except CurriculumError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
+
+    tagged = sum(1 for q in assessment.questions if q.outcome_codes)
+    console.print(f"[green]✓[/green] {tagged}/{len(assessment.questions)} questions tagged → assessment.yaml")
 
 
 @curriculum_app.command("import")
 def curriculum_import(
-    source: Path = typer.Argument(..., help="Curriculum source (MRAC file, PDF, or URL export)."),
+    source: Path = typer.Argument(..., exists=True, help="Curriculum source (pack.yaml; MRAC/PDF later)."),
     pack_id: str = typer.Option(..., "--id", help="Pack id, e.g. ac9-science."),
 ) -> None:
-    """[Phase 5] Import an official curriculum into a versioned pack.yaml."""
-    _phase_stub("curriculum import", "Phase 5", "ingest AC v9 (MRAC) or Claude-assisted PDF → pack.yaml")
+    """Import a curriculum into a versioned curricula/<id>/pack.yaml."""
+    from .curriculum import CurriculumError, import_pack
+
+    try:
+        target = import_pack(source, pack_id)
+    except CurriculumError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
+    console.print(f"[green]✓[/green] Imported pack [bold]{pack_id}[/bold] → {target}/")
 
 
 @curriculum_app.command("list")
 def curriculum_list() -> None:
-    """[Phase 5] List imported curriculum packs."""
-    _phase_stub("curriculum list", "Phase 5", "enumerate curricula/*/pack.yaml")
+    """List imported curriculum packs."""
+    from .curriculum import list_packs
+
+    packs = list_packs()
+    if not packs:
+        console.print("No packs found under curricula/ — run `markable curriculum import`.")
+        raise typer.Exit()
+    table = Table(show_edge=False)
+    for col in ("id", "curriculum", "version", "levels", "outcomes"):
+        table.add_column(col)
+    for p in packs:
+        table.add_row(p["id"], p["curriculum"], p["version"], ",".join(p["levels"]), str(p["outcomes"]))
+    console.print(table)
 
 
 if __name__ == "__main__":

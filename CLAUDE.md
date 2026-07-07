@@ -23,7 +23,12 @@ by the project owner on 2026-07-06**; the offline *digital* round trip in
 including a 180°-rotated noisy scan) stands in for it. **Still outstanding
 before first real class use:** a physical print → photocopy → scanner pass, and
 the Phase 2 accuracy validation (≥99% MCQ agreement, ≥95% within-1-mark short
-answers) against a hand-marked set. Part 2/3 commands remain stubs.
+answers) against a hand-marked set. **Part 2 core is now in:** `curriculum
+import|list` (structured pack.yaml only; Claude-assisted PDF import still
+pending), `tag` (offline keyword-overlap proposals + interactive confirm or
+`--map`), and `report --curriculum` (fact_attainment/dim_outcome CSVs + a
+single-file `curriculum_report.html`). Part 3 (`report --dashboard`, Power BI)
+remains stubbed.
 
 ## The pipeline (command contract)
 
@@ -33,9 +38,10 @@ markable build  <package> → paper.pdf + key.yaml + manifest.json     ✓
 markable scan   <package> <pdfs|imgs> → scripts/<sid>/<qid>.png + scan_report.json  ✓
 markable mark   <package> → marks.json + review.html (needs `ai` extra + API key)  ✓
 markable report <package> → results/totals/item_analysis.csv + summary.md + export/ ✓
-markable tag        <package> --curriculum <id>     (Phase 5 — stub)
-markable curriculum import|list                     (Phase 5 — stub)
-markable report --curriculum|--dashboard            (Phase 6/8 — stub)
+markable curriculum import <pack.yaml> --id <id> | list                    ✓
+markable tag    <package> --curriculum <id> [--map tags.yaml]              ✓
+markable report <package> --curriculum <id> → curriculum_report.html + CSVs ✓
+markable report --dashboard                         (Phase 8 — stub)
 ```
 
 Each command is independently runnable and reads/writes files in the **Assessment
@@ -69,7 +75,13 @@ src/markable/
     review.py          # review.html + review_overrides.yaml scaffold
   report.py            # results/totals/item_analysis CSVs, summary.md,
                        # review-override merge, star-schema export/
+  curriculum.py        # pack import/list/load + offline tag proposals + run_tag
+  standards.py         # attainment math, fact_attainment/dim_outcome export
+  standards_html.py    # single-file curriculum_report.html (no JS libs/network)
   cli.py               # typer app wiring all commands
+
+curricula/<pack-id>/   # imported packs: pack.yaml + source_meta.json
+                       # (immutable once used — revisions get a new id)
 
 fixtures/
   drafts/y9-chem-test.md              # 6 questions, every type — used by all tests
@@ -163,6 +175,9 @@ uv run markable build packages/demo
 uv run markable scan packages/demo scans/*.pdf --id-map ids.yaml   # or interactive
 uv run markable mark packages/demo [--batch]         # needs `ai` extra + ANTHROPIC_API_KEY
 uv run markable report packages/demo
+uv run markable curriculum import fixtures/curricula/mini-science/pack.yaml --id mini-science
+uv run markable tag packages/demo --curriculum mini-science        # or --map tags.yaml
+uv run markable report packages/demo --curriculum mini-science     # → curriculum_report.html
 uv run pytest                                        # full suite, offline, no API key
 ```
 

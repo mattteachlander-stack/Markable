@@ -24,6 +24,9 @@ htmlcov/
 /packages/
 /scans/
 /students/
+# Imported curriculum packs are the teacher's local library, not repo source
+# (the test pack lives in fixtures/curricula/).
+/curricula/
 
 # OS / editor
 .DS_Store

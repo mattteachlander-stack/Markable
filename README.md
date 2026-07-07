@@ -55,6 +55,14 @@ uv run markable mark packages/demo --batch
 uv run markable report packages/demo
 #    → results.csv, totals.csv, item_analysis.csv, summary.md,
 #      export/ (star schema: fact_response + dims, student IDs only — no names)
+
+# 6. Curriculum intelligence (Part 2)
+uv run markable curriculum import fixtures/curricula/mini-science/pack.yaml --id mini-science
+uv run markable tag packages/demo --curriculum mini-science
+uv run markable report packages/demo --curriculum mini-science
+#    → curriculum_report.html — a single self-contained file (attainment heatmap,
+#      strand/dimension rollups, misconceptions, coverage audit) that opens in
+#      any browser with no dev tools, plus fact_attainment/dim_outcome CSVs
 ```
 
 ### Draft format

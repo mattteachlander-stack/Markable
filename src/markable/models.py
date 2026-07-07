@@ -323,6 +323,9 @@ class Outcome(BaseModel):
     dimension: str
     strand: str
     description: str
+    # Short concept-area label for display, e.g. "Motion" → the analyse table's
+    # "Science Understanding (Physics: Motion)" style strings.
+    topic: Optional[str] = None
     elaborations: list[str] = Field(default_factory=list)
 
 

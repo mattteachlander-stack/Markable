@@ -1,0 +1,168 @@
+# Victorian Curriculum 2.0 — Science (Levels 9-10) — REPRESENTATIVE SUBSET.
+#
+# ⚠ Proof-of-concept pack: codes, strands, and descriptions are modelled on the
+# VC2.0 / AC v9 Science structure from general knowledge, NOT imported from the
+# official VCAA/ACARA machine-readable source. Verify every code against
+# https://f10.vcaa.vic.edu.au before using reports officially. The production
+# path is `markable curriculum import` against the official MRAC/VCAA export.
+curriculum: Victorian Curriculum 2.0 Science (representative subset)
+version: "2.0-poc"
+levels: ["9", "10"]
+dimensions:
+  - id: SU
+    name: Science Understanding
+  - id: SI
+    name: Science Inquiry
+outcomes:
+  # ---- Level 9 · Science Understanding -------------------------------------
+  - code: VC2S9U05
+    level: "9"
+    dimension: SU
+    strand: Chemical sciences
+    topic: Atomic structure
+    description: >-
+      model the structure of atoms in terms of protons, neutrons and electrons,
+      and explain how the model accounts for the properties of elements
+    elaborations:
+      - relating charge and mass of subatomic particles to atomic structure
+  - code: VC2S9U06
+    level: "9"
+    dimension: SU
+    strand: Chemical sciences
+    topic: Chemical reactions
+    description: >-
+      explain how chemical reactions rearrange atoms, using the law of
+      conservation of mass, word equations and mole reasoning
+    elaborations:
+      - calculating moles from mass and molar mass
+      - identifying reactants and products in everyday reactions
+  - code: VC2S9U07
+    level: "9"
+    dimension: SU
+    strand: Chemical sciences
+    topic: Reaction rates
+    description: >-
+      explain how temperature, concentration, surface area and catalysts affect
+      the rate of chemical reactions in terms of collision theory and
+      activation energy
+    elaborations:
+      - linking increased temperature to collision frequency and energy
+  - code: VC2S9U08
+    level: "9"
+    dimension: SU
+    strand: Chemical sciences
+    topic: Energy in reactions
+    description: >-
+      distinguish exothermic and endothermic reactions in terms of energy
+      transfer to and from the surroundings, including electrolysis and
+      combustion as everyday examples
+    elaborations:
+      - identifying electrodes, electrolyte and electron flow in a simple cell
+  - code: VC2S9U09
+    level: "9"
+    dimension: SU
+    strand: Physical sciences
+    topic: Energy transfer
+    description: >-
+      describe how energy is transferred and transformed in systems, including
+      heat transfer by conduction, convection and radiation
+  # ---- Level 10 · Science Understanding ------------------------------------
+  - code: VC2S10U01
+    level: "10"
+    dimension: SU
+    strand: Biological sciences
+    topic: Genetics
+    description: >-
+      explain the role of DNA and genes in cell division and the transmission
+      of heritable characteristics
+  - code: VC2S10U02
+    level: "10"
+    dimension: SU
+    strand: Biological sciences
+    topic: Evolution
+    description: >-
+      explain how the theory of evolution by natural selection accounts for the
+      diversity of living things and is supported by a range of evidence
+  - code: VC2S10U04
+    level: "10"
+    dimension: SU
+    strand: Chemical sciences
+    topic: Periodic table
+    description: >-
+      explain how the periodic table organises elements and use it to predict
+      the properties and reactions of elements and compounds
+  - code: VC2S10U08
+    level: "10"
+    dimension: SU
+    strand: Physical sciences
+    topic: Energy conservation
+    description: >-
+      apply the law of conservation of energy to analyse energy transfers and
+      transformations, including efficiency of systems
+  - code: VC2S10U09
+    level: "10"
+    dimension: SU
+    strand: Physical sciences
+    topic: Motion
+    description: >-
+      describe and analyse the motion of objects using average velocity,
+      acceleration and Newton's laws, quantitatively and qualitatively
+    elaborations:
+      - recalling and applying v = Δs/Δt and a = Δv/Δt
+      - explaining everyday motion using Newton's three laws
+  # ---- Levels 9-10 · Science Inquiry ----------------------------------------
+  - code: VC2S10I01
+    level: "10"
+    dimension: SI
+    strand: Questioning and predicting
+    topic: Hypothesising
+    description: >-
+      develop investigable questions, reasoned predictions and hypotheses to
+      explore scientific models and relationships
+  - code: VC2S10I02
+    level: "10"
+    dimension: SI
+    strand: Planning and conducting
+    topic: Fair testing
+    description: >-
+      plan and conduct valid, reproducible investigations, identifying
+      independent, dependent and controlled variables and managing risks
+  - code: VC2S10I04
+    level: "10"
+    dimension: SI
+    strand: Processing, modelling and analysis
+    topic: Data analysis
+    description: >-
+      select and construct appropriate representations to organise and process
+      data, and analyse patterns, trends, relationships and anomalies
+  - code: VC2S10I05
+    level: "10"
+    dimension: SI
+    strand: Evaluating
+    topic: Evaluating evidence
+    description: >-
+      evaluate the validity and reproducibility of methods, and the merit of
+      conclusions and claims, identifying sources of error and improvement
+  - code: VC2S10I06
+    level: "10"
+    dimension: SI
+    strand: Communicating
+    topic: Scientific communication
+    description: >-
+      construct evidence-based arguments and communicate reasoning using
+      scientific language, conventions and representations
+achievement_standards:
+  - level: "10"
+    statements:
+      - id: VC2-AS10-PHY
+        maps_to: [VC2S10U08, VC2S10U09]
+        text: >-
+          analyses the motion of objects and energy transformations
+          quantitatively, applying conservation of energy and Newton's laws
+misconception_library:
+  - id: VC2-MSC-01
+    outcome_codes: [VC2S9U05]
+    text: confuses the charges of electrons and protons
+  - id: VC2-MSC-02
+    outcome_codes: [VC2S10U09]
+    text: believes a moving object must have a net force acting on it

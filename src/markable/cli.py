@@ -237,7 +237,15 @@ def report(
 ) -> None:
     """Scores, item analysis, teacher summary, star-schema export."""
     if dashboard:
-        _phase_stub("report --dashboard", "Phase 8", "self-contained HTML dashboard")
+        from .dashboard_html import run_dashboard
+
+        try:
+            out = run_dashboard(package)
+        except FileNotFoundError as exc:
+            console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(code=1)
+        console.print(f"[green]✓[/green] Dashboard → [bold]{out}[/bold] (single file — open in any browser)")
+        return
     if curriculum:
         from .curriculum import CurriculumError, load_pack
         from .standards import run_curriculum_report
@@ -327,6 +335,38 @@ def tag(
 
     tagged = sum(1 for q in assessment.questions if q.outcome_codes)
     console.print(f"[green]✓[/green] {tagged}/{len(assessment.questions)} questions tagged → assessment.yaml")
+
+
+@app.command()
+def analyse(
+    source: Path = typer.Argument(..., exists=True, help="Assessment draft (.md) or an ingested package dir."),
+    curriculum: str = typer.Option(..., help="Curriculum pack id (or a pack.yaml path)."),
+    out: Optional[Path] = typer.Option(None, "-o", "--out", help="Output directory (default: beside the source)."),
+) -> None:
+    """Analyse a test: map every item to curriculum codes + cognitive level."""
+    from .analysis import run_analyse
+    from .curriculum import CurriculumError, load_pack
+
+    try:
+        pack = load_pack(curriculum)
+        result = run_analyse(source, pack, out_dir=out)
+    except (CurriculumError, Exception) as exc:  # IngestError etc. — show, don't trace
+        if not isinstance(exc, (CurriculumError, ValueError)):
+            raise
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
+
+    table = Table(title="Curriculum mapping (proposals — confirm with `markable tag`)", show_edge=False)
+    for col in ("Item", "Marks", "Concept area", "Code", "Level", "Skill"):
+        table.add_column(col)
+    for r in result["rows"]:
+        table.add_row(r.question_id, str(r.marks), r.concept_area, r.code or "—",
+                      r.cognitive_level, r.skill[:60] + ("…" if len(r.skill) > 60 else ""))
+    console.print(table)
+    console.print(
+        f"[green]✓[/green] {result['mapped']}/{len(result['rows'])} items mapped → "
+        f"[bold]{result['html']}[/bold] + {result['csv'].name}"
+    )
 
 
 @curriculum_app.command("import")

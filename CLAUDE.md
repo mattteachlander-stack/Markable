@@ -41,8 +41,15 @@ markable report <package> → results/totals/item_analysis.csv + summary.md + ex
 markable curriculum import <pack.yaml> --id <id> | list                    ✓
 markable tag    <package> --curriculum <id> [--map tags.yaml]              ✓
 markable report <package> --curriculum <id> → curriculum_report.html + CSVs ✓
-markable report --dashboard                         (Phase 8 — stub)
+markable report <package> --dashboard → dashboard.html (Tier 1, electric green) ✓
+markable analyse <draft|package> --curriculum <id> → test_analysis.html + CSV ✓
 ```
+
+`analyse` is the teacher-facing proof of concept: point it at a draft and get a
+per-item table (marks · strand/concept area · VCAA/ACARA code · Bloom's level ·
+specific skill). Proposals are offline heuristics (keyword overlap + verb
+classification); `fixtures/curricula/vc2-science` is a REPRESENTATIVE VC2.0
+Science subset — codes must be verified against VCAA before official use.
 
 Each command is independently runnable and reads/writes files in the **Assessment
 Package** — there is no daemon and no shared state beyond the package folder.
@@ -77,7 +84,11 @@ src/markable/
                        # review-override merge, star-schema export/
   curriculum.py        # pack import/list/load + offline tag proposals + run_tag
   standards.py         # attainment math, fact_attainment/dim_outcome export
-  standards_html.py    # single-file curriculum_report.html (no JS libs/network)
+  standards_html.py    # single-file curriculum_report.html (semantic-heat
+                       # red→amber→green heatmap, official strand labels, tooltips)
+  analysis.py          # `analyse`: item → code/Bloom's/skill mapping + HTML/CSV
+  dashboard_html.py    # `report --dashboard`: Tier 1 single-file dashboard
+                       # (validated electric-green ramp)
   cli.py               # typer app wiring all commands
 
 curricula/<pack-id>/   # imported packs: pack.yaml + source_meta.json

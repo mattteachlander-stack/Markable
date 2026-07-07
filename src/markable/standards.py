@@ -72,14 +72,18 @@ def compute_attainment(package_dir: Path, pack: CurriculumPack) -> AttainmentRes
             cohort[code][0] += j.marks_awarded
             cohort[code][1] += j.marks_available
 
+    # Labels follow the official curriculum naming: full dimension names
+    # ("Science Understanding", not "SU") and strands qualified by dimension.
+    dim_names = {d.id: (d.name or d.id) for d in pack.dimensions}
     strand_cohort: dict[str, list[float]] = defaultdict(lambda: [0.0, 0.0])
     dimension_cohort: dict[str, list[float]] = defaultdict(lambda: [0.0, 0.0])
     for code, (aw, av) in cohort.items():
         o = outcomes[code]
-        strand_cohort[o.strand][0] += aw
-        strand_cohort[o.strand][1] += av
-        dimension_cohort[o.dimension][0] += aw
-        dimension_cohort[o.dimension][1] += av
+        dim = dim_names.get(o.dimension, o.dimension)
+        strand_cohort[f"{dim} — {o.strand}"][0] += aw
+        strand_cohort[f"{dim} — {o.strand}"][1] += av
+        dimension_cohort[dim][0] += aw
+        dimension_cohort[dim][1] += av
 
     levels = {str(assessment.year_level)} if assessment.year_level else set(pack.levels)
     unassessed = [

@@ -123,8 +123,8 @@ def test_attainment_math(pkg, pack):
     assert r.cohort["MS9U01"] == [12.0, 16.0]
     # Q4 double-tagged: MS9I01 gets the same Q4 marks (evidence, not currency).
     assert r.per_student[("S1", "MS9I01")] == [6.0, 6.0]
-    # Strand rollup: Chemical sciences = MS8U02 + MS9U01 + MS9U03 cohort sums.
-    chem = r.strand_cohort["Chemical sciences"]
+    # Strand rollup uses official labels: "<Dimension name> — <Strand>".
+    chem = r.strand_cohort["Science Understanding — Chemical sciences"]
     assert chem[1] == r.cohort["MS8U02"][1] + r.cohort["MS9U01"][1] + r.cohort["MS9U03"][1]
     # Unmarked/untagged questions surface in coverage, not silently.
     assert "MS9I02" in r.unassessed

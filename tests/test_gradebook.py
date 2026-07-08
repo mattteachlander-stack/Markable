@@ -10,6 +10,8 @@ import pytest
 
 openpyxl = pytest.importorskip("openpyxl")
 
+from conftest import make_sac_sheet
+
 from markable.curriculum import load_pack
 from markable.gradebook import read_gradebook
 from markable.gradebook_html import render_gradebook
@@ -18,42 +20,19 @@ from markable.studydesign import compute_skills, map_sac
 VCE_PACK = Path(__file__).resolve().parents[1] / "fixtures" / "curricula" / "vce-biology-u34" / "pack.yaml"
 
 
-def _sac_sheet(wb, title, sac_num, topic, total, questions, students):
-    """questions: [(label, max)]; students: [(id, surname, first, [marks...])]."""
-    ws = wb.create_sheet(title)
-    ws.cell(2, 4, sac_num)   # SAC #:
-    ws.cell(2, 2, "SAC #:")
-    ws.cell(3, 4, topic)
-    ws.cell(3, 2, "TOPIC:")
-    ws.cell(4, 4, total)
-    ws.cell(4, 2, "TOTAL MARKS:")
-    h = 19
-    # header row + labels one above
-    ws.cell(h, 2, "ID"); ws.cell(h, 3, "VCAA Number"); ws.cell(h, 4, "Surname"); ws.cell(h, 5, "First Name")
-    for i, (label, mx) in enumerate(questions):
-        c = 8 + i
-        ws.cell(h - 1, c, label)
-        ws.cell(h, c, f"/{mx:g}")
-    ws.cell(h - 1, 8 + len(questions), "TOTAL")
-    ws.cell(h, 8 + len(questions), f"/{total:g}")
-    for r, (sid, surname, first, marks) in enumerate(students, start=h + 1):
-        ws.cell(r, 2, sid); ws.cell(r, 4, surname); ws.cell(r, 5, first)
-        for i, m in enumerate(marks):
-            ws.cell(r, 8 + i, m)
-    return ws
 
 
 @pytest.fixture
 def workbook(tmp_path):
     wb = openpyxl.Workbook()
     wb.remove(wb.active)
-    _sac_sheet(wb, "Unit 3 AoS 1 SAC", 1, "Unit 3 AoS 1", 8,
+    make_sac_sheet(wb, "Unit 3 AoS 1 SAC", 1, "Unit 3 AoS 1", 8,
                [("1", 2), ("2", 3), ("3a", 2), ("3b", 1)],
                [("1", "SMITH", "Ann", [2, 3, 2, 1]),
                 ("2", "JONES", "Bob", [1, 1, 0, 0]),
                 ("3", "LEE", "Cara", [2, 2, 1, 1]),
                 ("4", "NG", "Dan", [0, 0, 0, 0])])
-    _sac_sheet(wb, "Prac SAC", 5, "Prac Investigation", 6,
+    make_sac_sheet(wb, "Prac SAC", 5, "Prac Investigation", 6,
                [("Research Q", 2), ("Results Table", 2), ("Discussion - Evaluates Hypothesis", 2)],
                [("1", "SMITH", "Ann", [2, 2, 2]),
                 ("2", "JONES", "Bob", [1, 1, 0]),

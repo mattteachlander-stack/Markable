@@ -45,7 +45,15 @@ markable report <package> --dashboard → dashboard.html (Tier 1, electric green
 markable analyse <draft|package> --curriculum <id> → test_analysis.html + CSV ✓
 markable gradebook <xlsx> [--study-design <id> --map sacmap.yaml] → sac_dashboard.html ✓
 markable studio → markable.html (single-file hub: landing + left nav + upload boxes) ✓
+markable powerbi <xlsx> [--study-design <id> --map sacmap.yaml] → tidy star-schema CSVs + guide ✓
 ```
+
+`powerbi` is the **Tier 2 (§10.2) data cleaner**: it flattens the messy teacher
+gradebook into an analysis-ready star schema (`fact_marks`, `fact_student_sac`,
+`dim_student/question/assessment/skill`) as tidy CSVs Power BI reads directly,
+logs data-quality issues (`data_quality.csv`), and writes `POWER_BI_GUIDE.md`
+(load order, relationships, DAX measures, visual-by-visual build steps). No
+`.pbit` is fabricated — clean data + guide is the dependable path.
 
 `studio` emits the **hub**: one self-contained HTML landing page (tool cards +
 instructions + inline-SVG hero) with a left-nav that opens the generated report
@@ -112,6 +120,7 @@ src/markable/
   gradebook_html.py    # tabbed single-file SAC dashboard (overview/per-SAC/skills)
   studio_html.py       # `studio`: single-file hub — landing + left nav + client-side
                        # upload boxes (in-browser xlsx→dashboard, doc→readiness)
+  powerbi.py           # `powerbi`: clean gradebook → tidy star-schema CSVs + build guide
   cli.py               # typer app wiring all commands
 
 curricula/<pack-id>/   # imported packs: pack.yaml + source_meta.json

@@ -338,6 +338,68 @@ def tag(
 
 
 @app.command()
+def powerbi(
+    workbook: Path = typer.Argument(..., exists=True, help="Teacher SAC gradebook (.xlsx)."),
+    out: Path = typer.Option(Path("powerbi_export"), "-o", "--out", help="Output folder for the clean dataset."),
+    study_design: Optional[str] = typer.Option(
+        None, "--study-design", help="Pack id to add a study-design-area column (auto-mapped)."
+    ),
+    map_file: Optional[Path] = typer.Option(
+        None, "--map", help="YAML {sac_number: {question_id: [codes]}} — teacher-confirmed mappings."
+    ),
+) -> None:
+    """Clean a messy gradebook into a Power BI-ready star schema + build guide."""
+    try:
+        from .gradebook import read_gradebook
+        from .powerbi import clean, write_dataset
+    except ImportError:
+        console.print("[red]Needs the 'xlsx' extra: uv sync --extra xlsx[/red]")
+        raise typer.Exit(code=1)
+
+    try:
+        gb = read_gradebook(workbook)
+    except (ValueError, RuntimeError) as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
+
+    area_of: dict = {}
+    if study_design:
+        from .curriculum import CurriculumError, load_pack
+        from .powerbi import _assessment_id
+        from .studydesign import map_sac
+
+        try:
+            pack = load_pack(study_design)
+        except CurriculumError as exc:
+            console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(code=1)
+        outcomes = {o.code: o for o in pack.outcomes}
+        dim_names = {d.id: (d.name or d.id) for d in pack.dimensions}
+        teacher_map = None
+        if map_file is not None:
+            import yaml as _yaml
+
+            teacher_map = _yaml.safe_load(map_file.read_text(encoding="utf-8")) or {}
+        for sac in gb.sacs:
+            aid = _assessment_id(sac)
+            for m in map_sac(sac, pack, teacher_map):
+                if m.codes:
+                    o = outcomes[m.codes[0]]
+                    area_of[(aid, m.question_id)] = f"{dim_names.get(o.dimension, o.dimension)} — {o.strand}"
+
+    res = clean(gb, area_of=area_of)
+    result = write_dataset(res, out)
+
+    console.print(f"[green]✓[/green] Clean Power BI dataset → [bold]{out}/[/bold]")
+    console.print(f"  {result['fact_rows']} fact rows · {result['students']} students · "
+                  f"{result['assessments']} assessments"
+                  + (" · study-design areas" if result['has_skills'] else ""))
+    console.print("  fact_marks.csv · fact_student_sac.csv · dim_* · POWER_BI_GUIDE.md")
+    if result["quality_flags"]:
+        console.print(f"  [yellow]{result['quality_flags']} data-quality flag(s)[/yellow] → data_quality.csv")
+
+
+@app.command()
 def studio(
     out: Path = typer.Option(Path("markable.html"), "-o", "--out", help="Output hub file."),
 ) -> None:

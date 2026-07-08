@@ -174,6 +174,7 @@ def write_dataset(res: CleanResult, out_dir: Path) -> dict:
         header=["assessment", "issue", "detail"],
     )
     (out_dir / "POWER_BI_GUIDE.md").write_text(_guide(res), encoding="utf-8")
+    (out_dir / "POWER_QUERY_LOAD.m").write_text(_power_query(res), encoding="utf-8")
     return {
         "fact_rows": len(res.fact_marks),
         "students": len(res.dim_student),
@@ -187,6 +188,68 @@ def run_powerbi(workbook: Path, out_dir: Path, area_of: dict | None = None) -> d
     gb = read_gradebook(workbook)
     res = clean(gb, area_of=area_of)
     return write_dataset(res, out_dir)
+
+
+# Column → Power Query type. Names not listed default to `type text`.
+_M_TYPES = {
+    "marks_awarded": "type number", "marks_available": "type number",
+    "pct": "type number", "raw_score": "type number", "max_score": "type number",
+    "max_marks": "type number", "total_marks": "type number",
+    "question_count": "Int64.Type", "students": "Int64.Type",
+}
+
+
+def _power_query(res: CleanResult) -> str:
+    """Emit a paste-ready Power Query M loader, one typed query per table, with
+    column types derived from the actual data — so the load is one paste each."""
+    tables = [
+        ("fact_marks", res.fact_marks),
+        ("fact_student_sac", res.fact_student_sac),
+        ("dim_student", res.dim_student),
+        ("dim_question", res.dim_question),
+        ("dim_assessment", res.dim_assessment),
+    ]
+    if res.dim_skill:
+        tables.append(("dim_skill", res.dim_skill))
+    tables.append(("data_quality", [{"assessment": "", "issue": "", "detail": ""}]))
+
+    blocks = []
+    for name, rows in tables:
+        cols = list(rows[0].keys()) if rows else []
+        typemap = ",\n        ".join(
+            f'{{"{c}", {_M_TYPES.get(c, "type text")}}}' for c in cols
+        )
+        blocks.append(f"""// ---------- {name} ----------
+let
+    FolderPath = "C:\\Markable\\powerbi",
+    Source = Csv.Document(File.Contents(FolderPath & "\\{name}.csv"), [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+    Typed = Table.TransformColumnTypes(Promoted, {{
+        {typemap}
+    }})
+in
+    Typed""")
+
+    header = """// Markable -> Power BI - one-paste loader
+// =======================================================================
+// Loads every clean CSV with correct column types, so you skip importing
+// files by hand.
+//
+// 1. Unzip the Markable dataset to a folder, e.g. C:\\Markable\\powerbi
+//    (Mac: /Users/you/Markable/powerbi). All .csv files go in that folder.
+// 2. Power BI Desktop -> Home -> Transform data (opens Power Query Editor).
+// 3. For EACH block below: Home -> New Source -> Blank Query, then
+//    View -> Advanced Editor, paste the block (from "let" to "in Typed"),
+//    and set FolderPath to your folder. Name the query the same as the table.
+// 4. Home -> Close & Apply.
+// 5. Model view -> draw relationships + add DAX measures from POWER_BI_GUIDE.md.
+//
+// Tip: make a parameter (Home -> Manage Parameters) named FolderPath and
+// replace the literal path in each query with it, so you set the folder once.
+// =======================================================================
+
+"""
+    return header + "\n\n".join(blocks) + "\n"
 
 
 def _guide(res: CleanResult) -> str:
@@ -223,6 +286,11 @@ In Power BI Desktop: **Home → Get data → Text/CSV**, and load each file (or
 
 Power BI usually detects types correctly. If `pct`/`marks_*` load as text,
 select the column → **Transform → Data type → Decimal number**.
+
+> **One-paste option:** `POWER_QUERY_LOAD.m` in this folder has a typed loader
+> query per table. In **Transform data → New Source → Blank Query → Advanced
+> Editor**, paste each block and set `FolderPath` to this folder — column types
+> are already set, so you skip the manual typing step above.
 
 ## 2. Relationships (Model view)
 Create these (drag field to field). All are **one-to-many**, single direction

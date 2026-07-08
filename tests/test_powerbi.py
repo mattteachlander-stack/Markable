@@ -82,6 +82,11 @@ def test_study_design_area_join_and_guide(workbook, tmp_path):
     assert "star schema" in guide and "DAX" in guide and "dim_skill" in guide
     assert "Facility %" in guide and "Relationships" in guide
 
+    # paste-ready Power Query loader, typed from the real columns
+    m = (out / "POWER_QUERY_LOAD.m").read_text()
+    assert "fact_marks" in m and "Table.PromoteHeaders" in m
+    assert '{"pct", type number}' in m and '{"student_name", type text}' in m
+
 
 def test_quality_flags_missing_and_over_max(tmp_path):
     wb = openpyxl.Workbook(); wb.remove(wb.active)

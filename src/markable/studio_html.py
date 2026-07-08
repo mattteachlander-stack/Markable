@@ -108,8 +108,9 @@ _TOOLS = [
 
 # (nav-id, label, kind, target). kind: 'view' (internal), 'file' (iframe sibling).
 _REPORTS = [
+    ("sacvce", "VCE — SAC results", "vce_sac_dashboard.html"),
+    ("sac710", "Years 7–10 — results", "y7-10_dashboard.html"),
     ("dashboard", "Assessment dashboard", "dashboard.html"),
-    ("sac", "SAC gradebook dashboard", "sac_dashboard.html"),
     ("curriculum", "Curriculum report", "curriculum_report.html"),
     ("analysis", "Test analysis", "test_analysis.html"),
 ]
@@ -453,7 +454,7 @@ def render_studio(embedded: dict | None = None) -> str:
       VCE study design.</p>
       <div class="pbtns">
         <button class="pbtn" onclick="document.getElementById('drop-xlsx-input').click()">Upload SAC results</button>
-        <button class="pbtn ghost" onclick="show('guide')">How it works</button>
+        <button class="pbtn ghost" onclick="openReportByFile('vce_sac_dashboard.html')">View VCE demo</button>
       </div>
       <div class="curric">Curriculum: VCE study designs (e.g. Biology Units 3 &amp; 4)</div>
     </div>
@@ -464,7 +465,7 @@ def render_studio(embedded: dict | None = None) -> str:
       plus test analysis and AI-marking prep — mapped to the Australian Curriculum (v9).</p>
       <div class="pbtns">
         <button class="pbtn" onclick="document.getElementById('drop-xlsx-input').click()">Upload class results</button>
-        <button class="pbtn ghost" onclick="document.getElementById('drop-doc-input').click()">Analyse a test</button>
+        <button class="pbtn ghost" onclick="openReportByFile('y7-10_dashboard.html')">View Years 7–10 demo</button>
       </div>
       <div class="curric">Curriculum: Australian Curriculum v9 Science (AC9 codes)</div>
     </div>
@@ -573,6 +574,10 @@ function show(view, btn){
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
   if(btn) btn.classList.add('active');
   else if(view==='home') document.querySelector('.nav-item[data-view=home]').classList.add('active');
+}
+function openReportByFile(file){
+  const btn=document.querySelector('.nav-item[data-file="'+file+'"]');
+  if(btn){btn.scrollIntoView({block:'nearest'});openReport(btn);}
 }
 function openReport(btn){
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));

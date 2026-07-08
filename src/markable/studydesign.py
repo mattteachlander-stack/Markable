@@ -32,6 +32,7 @@ class QuestionMap:
     max_marks: float
     codes: list[str]
     source: str  # "teacher" | "auto" | "unmapped"
+    areas: list[str] = field(default_factory=list)  # study-design areas the codes belong to
 
 
 @dataclass
@@ -87,6 +88,10 @@ def compute_skills(sac: SAC, pack: CurriculumPack, teacher_map: dict | None = No
 
     def area_of(code: str) -> str:
         return outcomes[code].strand
+
+    # Attach the resolved area(s) to each question map for downstream views.
+    for m in maps:
+        m.areas = sorted({area_of(c) for c in m.codes})
 
     per_student: dict[tuple[str, str], list[float]] = defaultdict(lambda: [0.0, 0.0])
     cohort: dict[str, list[float]] = defaultdict(lambda: [0.0, 0.0])

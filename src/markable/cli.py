@@ -434,6 +434,7 @@ def gradebook(
     class_names: Optional[str] = typer.Option(
         None, "--classes", help="Comma-separated class names to assign (demo) when the workbook has none, e.g. '12 BIO A,12 BIO B'."
     ),
+    term: str = typer.Option("SAC", "--term", help="Word for an assessment in this dashboard: 'SAC' (VCE) or 'Assessment' (Years 7-10)."),
     out: Path = typer.Option(Path("sac_dashboard.html"), "-o", "--out", help="Output HTML file."),
 ) -> None:
     """Build a multi-SAC dashboard (+ skills mapping) from a marks spreadsheet."""
@@ -474,7 +475,7 @@ def gradebook(
     else:
         from .gradebook_html import render_gradebook
 
-    out.write_text(render_gradebook(gb, skills, pack_name), encoding="utf-8")
+    out.write_text(render_gradebook(gb, skills, pack_name, term=term), encoding="utf-8")
 
     table = Table(title=f"Parsed {gb.source}", show_edge=False)
     for col in ("SAC", "Topic", "Questions", "Students", "Avg"):

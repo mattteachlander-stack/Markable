@@ -121,12 +121,26 @@ select.picker{padding:8px 12px;border-radius:9px;border:1px solid var(--border);
 .foot{color:var(--muted);font-size:12px;margin-top:26px}
 #tip{position:fixed;display:none;max-width:340px;background:var(--tip-bg);color:var(--tip-ink);padding:9px 12px;border-radius:8px;font-size:13.5px;line-height:1.4;z-index:20;pointer-events:none;box-shadow:0 6px 18px rgba(0,0,0,.25)}
 #tip b{display:block;margin-bottom:2px}
+.highlights{border-left:4px solid var(--brand)}
+.highlights h4{font-size:12.5px;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;margin:0 0 8px}
+.hi-lead{margin:0 0 14px;color:var(--ink)}
+.hi-cols{display:grid;grid-template-columns:1.3fr 1fr;gap:22px}
+@media(max-width:760px){.hi-cols{grid-template-columns:1fr}}
+.hi-list{list-style:none;margin:0;padding:0}
+.hi-list li{padding:6px 0;border-bottom:1px solid var(--grid);font-size:13.5px}
+.hi-list .hpct{display:inline-block;min-width:34px;text-align:center;border-radius:5px;padding:1px 6px;font-size:12px;font-variant-numeric:tabular-nums}
+.hi-list .concept{color:var(--ink-2)}
+.hi-area{font-size:13.5px} .muted{color:var(--muted)}
+table.clsq td.concept-cell{color:var(--ink-2);font-size:12.5px}
+table.clsq td.neg{color:#c23b3b;font-weight:600} table.clsq td.pos{color:#2e9647}
+table.clsq tr.flag td{background:rgba(194,59,59,.07)}
+.hi-list .hpct.h0,.hi-list .hpct.h1,.hi-list .hpct.h2{color:#fff}
 """
 
 
 def _heat_css() -> str:
-    light = "".join(f".mx td.h{i}{{background:{bg};color:{ink}}}" for i, (bg, ink, _, _) in enumerate(_HEAT))
-    dark = "".join(f".mx td.h{i}{{background:{bg};color:{ink}}}" for i, (_, _, bg, ink) in enumerate(_HEAT))
+    light = "".join(f".mx td.h{i},.hpct.h{i}{{background:{bg};color:{ink}}}" for i, (bg, ink, _, _) in enumerate(_HEAT))
+    dark = "".join(f".mx td.h{i},.hpct.h{i}{{background:{bg};color:{ink}}}" for i, (_, _, bg, ink) in enumerate(_HEAT))
     fill = "".join(f".bars .fill.h{i}{{background:{bg}}}" for i, (bg, *_ ) in enumerate(_HEAT))
     fill_d = "".join(f".bars .fill.h{i}{{background:{bg}}}" for i, (_, _, bg, _) in enumerate(_HEAT))
     sw = "".join(f".hsw{i}{{background:{c}}}" for i, (c, *_ ) in enumerate(_HEAT))
@@ -199,10 +213,119 @@ def _hcell(pct: float | None, title: str, body: str) -> str:
     return f'<td class="h{_heat_bin(pct)}" data-tip-title="{_esc(title)}" data-tip="{_esc(body)}">{pct:.0f}</td>'
 
 
+def _facility(sac: SAC, qid: str, names: set) -> float | None:
+    q = next((q for q in sac.questions if q.id == qid), None)
+    if q is None or not q.max_marks:
+        return None
+    marks = [st.marks.get(qid, 0.0) for st in sac.students if st.name in names]
+    return None if not marks else sum(marks) / (q.max_marks * len(marks))
+
+
+def _qmeta(skills: list[SkillsAttainment] | None) -> dict:
+    """{sac_number: {qid: {"codes": [...], "area": str}}} from the study-design map."""
+    out: dict = {}
+    for sk in skills or []:
+        out[sk.sac_number] = {
+            m.question_id: {"codes": m.codes, "area": (m.areas[0] if m.areas else "")}
+            for m in sk.question_maps
+        }
+    return out
+
+
+def _short_area(area: str) -> str:
+    return area.split("·", 1)[1].strip() if "·" in area else area
+
+
+def _highlights_card(gb: Gradebook, skills: list[SkillsAttainment] | None, term: str) -> str:
+    """Key highlights: hardest questions (with linked codes/concepts) + weakest area."""
+    qmeta = _qmeta(skills)
+    hardest = []  # (facility, sac, qid, meta)
+    for sac in gb.sacs:
+        names = {st.name for st in sac.students}
+        for q in sac.questions:
+            f = _facility(sac, q.id, names)
+            if f is not None:
+                hardest.append((f, sac, q.id, qmeta.get(sac.number, {}).get(q.id, {})))
+    hardest.sort(key=lambda t: t[0])
+    top = hardest[:5]
+
+    def meta_str(m: dict) -> str:
+        code = ", ".join(m.get("codes") or [])
+        area = _short_area(m.get("area") or "")
+        bits = " · ".join(x for x in (area, code) if x)
+        return f" — {_esc(bits)}" if bits else ""
+
+    items = "".join(
+        f'<li><b>{_esc(qid)}</b> <span class="muted">({_esc(sac.topic)})</span> — '
+        f'<span class="hpct h{_heat_bin(f*100)}">{f*100:.0f}%</span>'
+        f'<span class="concept">{meta_str(m)}</span></li>'
+        for f, sac, qid, m in top
+    )
+
+    # weakest / strongest study-design area across the cohort
+    area_line = ""
+    if skills:
+        agg: dict[str, list[float]] = {}
+        for sk in skills:
+            for area, (aw, av) in sk.cohort_area.items():
+                if av:
+                    a = agg.setdefault(area, [0.0, 0.0])
+                    a[0] += aw
+                    a[1] += av
+        pcts = {a: 100 * v[0] / v[1] for a, v in agg.items() if v[1]}
+        if pcts:
+            weak = min(pcts, key=pcts.get)
+            strong = max(pcts, key=pcts.get)
+            area_line = (f'<p class="hi-area">Weakest area: <b>{_esc(_short_area(weak))}</b> '
+                         f'({pcts[weak]:.0f}%) · Strongest: <b>{_esc(_short_area(strong))}</b> ({pcts[strong]:.0f}%)</p>')
+
+    all_pct = [100 * sac.total_for(st) / sac.total_marks
+               for sac in gb.sacs for st in sac.students if sac.total_marks]
+    avg = sum(all_pct) / len(all_pct) if all_pct else 0
+    below = sum(1 for p in all_pct if p < 50)
+
+    return f"""<div class="card highlights">
+<h3>🔑 Key highlights</h3>
+<p class="hi-lead">Cohort average <b>{avg:.0f}%</b> across {len(gb.sacs)} {_esc(term.lower())}(s) ·
+{below} result(s) below 50% flagged for support.</p>
+<div class="hi-cols">
+  <div><h4>Hardest questions</h4><ul class="hi-list">{items}</ul></div>
+  <div><h4>Where to focus</h4>{area_line or '<p class="muted">Add a study design to link questions to concepts/codes.</p>'}
+  <p class="muted" style="margin-top:8px">Each hardest question shows its linked concept and curriculum code where mapped.</p></div>
+</div></div>"""
+
+
+def _classq_payload(gb: Gradebook, skills: list[SkillsAttainment] | None) -> dict:
+    """Per-class, per-question facility + cohort facility + linked code/area."""
+    qmeta = _qmeta(skills)
+    cls = classes(gb)
+    assessments = []
+    by_class: dict = {c: {} for c in cls}
+    for sac in gb.sacs:
+        all_names = {st.name for st in sac.students}
+        qlist = []
+        for q in sac.questions:
+            fc = _facility(sac, q.id, all_names)
+            m = qmeta.get(sac.number, {}).get(q.id, {})
+            qlist.append({
+                "id": q.id, "max": q.max_marks,
+                "cohort": None if fc is None else round(fc * 100),
+                "codes": m.get("codes") or [], "area": _short_area(m.get("area") or ""),
+            })
+        assessments.append({"number": sac.number, "topic": sac.topic, "questions": qlist})
+        for c in cls:
+            names = {st.name for st in sac.students if st.class_group == c}
+            by_class[c][sac.number] = {
+                q.id: (lambda f: None if f is None else round(f * 100))(_facility(sac, q.id, names))
+                for q in sac.questions
+            }
+    return {"classes": cls, "assessments": assessments, "byClass": by_class}
+
+
 # --------------------------------------------------------------------------- SAC tab (lengthways)
 
 
-def _sac_tab(sac: SAC, idx: int) -> str:
+def _sac_tab(sac: SAC, idx: int, term: str = "SAC") -> str:
     totals, pct = _sac_totals(sac)
     seg = _quartile_seg(pct)
     seg_names = [(0, "All"), (1, "Top 25%"), (2, "Middle 50%"), (3, "Bottom 25%")]
@@ -240,7 +363,7 @@ def _sac_tab(sac: SAC, idx: int) -> str:
                  f'{cells}<td class="diff"><span class="chip {d}">{d}</span></td></tr>')
 
     return f"""<div class="tab" id="sac{idx}">
-<h2>SAC {_esc(sac.number)} — {_esc(sac.topic)}</h2>
+<h2>{_esc(term)} {_esc(sac.number)} — {_esc(sac.topic)}</h2>
 <div class="kpis">{tiles}</div>
 <div class="card"><h3>Score distribution</h3>{_histogram(values)}</div>
 <div class="card"><h3>Question performance by cohort quartile</h3>
@@ -252,7 +375,7 @@ def _sac_tab(sac: SAC, idx: int) -> str:
 # --------------------------------------------------------------------------- overview
 
 
-def _overview_tab(gb: Gradebook) -> str:
+def _overview_tab(gb: Gradebook, term: str, highlights: str) -> str:
     sac_pct = {sac.sheet: _sac_totals(sac)[1] for sac in gb.sacs}
     all_students = sorted({n for p in sac_pct.values() for n in p})
     all_vals = [v for p in sac_pct.values() for v in p.values()]
@@ -260,53 +383,55 @@ def _overview_tab(gb: Gradebook) -> str:
 
     tiles = _tiles([
         ("Students", str(len(all_students)), "", True),
-        ("SACs", str(len(gb.sacs)), "", False),
-        ("Overall average", f"{sum(all_vals)/len(all_vals):.0f}%", "across all SACs", False),
-        ("Strongest SAC", best.topic[:16], f"{sum(sac_pct[best.sheet].values())/len(sac_pct[best.sheet]):.0f}%", False),
+        (f"{term}s", str(len(gb.sacs)), "", False),
+        ("Overall average", f"{sum(all_vals)/len(all_vals):.0f}%", f"across all {term.lower()}s", False),
+        (f"Strongest {term.lower()}", best.topic[:16], f"{sum(sac_pct[best.sheet].values())/len(sac_pct[best.sheet]):.0f}%", False),
     ])
 
     bar_rows = ""
     for sac in gb.sacs:
         p = sac_pct[sac.sheet]
         avg = sum(p.values()) / len(p)
-        bar_rows += (f'<div class="row" data-tip-title="SAC {_esc(sac.number)} — {_esc(sac.topic)}" '
+        bar_rows += (f'<div class="row" data-tip-title="{_esc(term)} {_esc(sac.number)} — {_esc(sac.topic)}" '
                      f'data-tip="Cohort average {avg:.0f}% · {len(p)} students">'
-                     f'<div class="name">SAC {_esc(sac.number)}: {_esc(sac.topic)}</div>'
+                     f'<div class="name">{_esc(term)} {_esc(sac.number)}: {_esc(sac.topic)}</div>'
                      f'<div class="track"><div class="fill h{_heat_bin(avg)}" style="width:{avg:.1f}%"></div></div>'
                      f'<div class="val">{avg:.0f}%</div></div>')
 
     head = ('<tr><th class="rowh">Student</th>'
-            + "".join(f'<th>SAC {_esc(s.number)}</th>' for s in gb.sacs) + "<th>Overall</th></tr>")
+            + "".join(f'<th>{_esc(term)} {_esc(s.number)}</th>' for s in gb.sacs) + "<th>Overall</th></tr>")
     rows = ""
     for name in all_students:
         vals = [sac_pct[s.sheet].get(name) for s in gb.sacs]
         present = [v for v in vals if v is not None]
         overall = sum(present) / len(present) if present else None
         cells = "".join(
-            _hcell(v, f"{name} · SAC {s.number}", "" if v is None else f"{v:.0f}% — {s.topic}")
+            _hcell(v, f"{name} · {term} {s.number}", "" if v is None else f"{v:.0f}% — {s.topic}")
             for s, v in zip(gb.sacs, vals)
         )
-        ov = _hcell(overall, f"{name} · overall", "" if overall is None else f"{overall:.0f}% across SACs")
+        ov = _hcell(overall, f"{name} · overall", "" if overall is None else f"{overall:.0f}% across {term.lower()}s")
         rows += f'<tr><th class="rowh">{_esc(name)}</th>{cells}{ov}</tr>'
 
     return f"""<div class="tab active" id="overview">
 <div class="kpis">{tiles}</div>
-<div class="card"><h3>Cohort average by SAC</h3><div class="bars">{bar_rows}</div></div>
-<div class="card"><h3>Every student across every SAC</h3>
+{highlights}
+<div class="card"><h3>Cohort average by {_esc(term.lower())}</h3><div class="bars">{bar_rows}</div></div>
+<div class="card"><h3>Every student across every {_esc(term.lower())}</h3>
 <div class="mx"><table>{head}{rows}</table></div>{_LEGEND}
-<p class="foot">Scaled to % of each SAC's marks. Names for the owning teacher's local view only.</p></div>
+<p class="foot">Scaled to % of each {_esc(term.lower())}'s marks. Names for the owning teacher's local view only.</p></div>
 </div>"""
 
 
 # --------------------------------------------------------------------------- classes
 
 
-def _classes_tab(gb: Gradebook) -> str:
+def _classes_tab(gb: Gradebook, term: str) -> str:
     cls = classes(gb)
     if not cls:
         return ""
-    # class × SAC average
-    head = '<tr><th class="rowh">Class</th>' + "".join(f'<th>SAC {_esc(s.number)}</th>' for s in gb.sacs) + "<th>Overall</th><th>Students</th></tr>"
+    head = ('<tr><th class="rowh">Class</th>'
+            + "".join(f'<th>{_esc(term)} {_esc(s.number)}</th>' for s in gb.sacs)
+            + "<th>Overall</th><th>Students</th></tr>")
     rows = ""
     for c in cls:
         cells = ""
@@ -320,18 +445,27 @@ def _classes_tab(gb: Gradebook) -> str:
             if vals:
                 avg = sum(vals) / len(vals)
                 overall_vals.append(avg)
-                cells += _hcell(avg, f"{c} · SAC {s.number}", f"{avg:.0f}% average · {len(vals)} students")
+                cells += _hcell(avg, f"{c} · {term} {s.number}", f"{avg:.0f}% average · {len(vals)} students")
             else:
                 cells += '<td class="na">—</td>'
         ov = sum(overall_vals) / len(overall_vals) if overall_vals else None
         rows += (f'<tr><th class="rowh">{_esc(c)}</th>{cells}'
-                 + _hcell(ov, f"{c} · overall", "" if ov is None else f"{ov:.0f}% across SACs")
+                 + _hcell(ov, f"{c} · overall", "" if ov is None else f"{ov:.0f}% across {term.lower()}s")
                  + f'<td style="background:none;color:var(--ink-2)">{n}</td></tr>')
 
+    source = "are illustrative (assigned for the demo)" if gb.mock_classes else "come from the workbook"
     return f"""<div class="tab" id="classes">
 <h2>Class-by-class comparison</h2>
 <div class="card"><div class="mx"><table>{head}{rows}</table></div>{_LEGEND}
-<p class="foot">Average % per class per SAC. Class groups {"are illustrative (assigned for the demo)" if gb.mock_classes else "come from the workbook"}.</p></div>
+<p class="foot">Average % per class per {_esc(term.lower())}. Class groups {source}.</p></div>
+
+<div class="card">
+<h3>My class — question-level analysis</h3>
+<p class="sub">Pick your class to see how it performed on each question, against the whole cohort. Questions
+where your class is below the cohort are flagged.</p>
+<select class="picker" id="clsq-pick" onchange="renderClassQ()"></select>
+<div id="clsq-body"></div>
+</div>
 </div>"""
 
 
@@ -387,18 +521,16 @@ function renderSpot(){
   const d=SPOT.byStudent[name];const el=document.getElementById('spot-body');
   if(!d){el.innerHTML='';return}
   let h='<div class="spot-head"><div class="big">'+(d.overall==null?'—':d.overall+'%')+'</div>'+
-    '<div class="meta"><b>'+name+'</b>'+(d.class?' · '+d.class:'')+' · overall across '+d.sacs.length+' SAC(s)</div></div>';
-  // per-SAC vs cohort bars
-  h+='<div class="card"><h3>Result on each SAC vs cohort average</h3><div class="bars">';
+    '<div class="meta"><b>'+name+'</b>'+(d.class?' · '+d.class:'')+' · overall across '+d.sacs.length+' '+TERM.toLowerCase()+'(s)</div></div>';
+  h+='<div class="card"><h3>Result on each '+TERM.toLowerCase()+' vs cohort average</h3><div class="bars">';
   d.sacs.forEach(s=>{const p=s.pct==null?0:s.pct;
-    h+='<div class="row" data-tip-title="SAC '+s.number+' — '+s.topic+'" data-tip="'+(s.pct==null?'not sat':s.pct+'% vs cohort '+s.cohort+'%')+'">'+
-      '<div class="name">SAC '+s.number+': '+s.topic+'</div>'+
+    h+='<div class="row" data-tip-title="'+TERM+' '+s.number+' — '+s.topic+'" data-tip="'+(s.pct==null?'not sat':s.pct+'% vs cohort '+s.cohort+'%')+'">'+
+      '<div class="name">'+TERM+' '+s.number+': '+s.topic+'</div>'+
       '<div class="track"><div class="fill h'+heatBin(p)+'" style="width:'+p+'%"></div></div>'+
       '<div class="val">'+(s.pct==null?'—':s.pct+'%')+'<span style="color:var(--muted)"> / '+s.cohort+'</span></div></div>';});
-  h+='</div><p class="foot">Green→red = this student\\'s %. The grey number is the cohort average for that SAC.</p></div>';
-  // per-question detail per SAC
+  h+='</div><p class="foot">Green→red = this student\\'s %. The grey number is the cohort average.</p></div>';
   d.sacs.forEach(s=>{
-    let head='<tr><th class="rowh">SAC '+s.number+'</th>';let row='<tr><th class="rowh">% of marks</th>';
+    let head='<tr><th class="rowh">'+TERM+' '+s.number+'</th>';let row='<tr><th class="rowh">% of marks</th>';
     s.questions.forEach(q=>{head+='<th>'+q.id+'</th>';
       const p=(q.mark==null||!q.max)?null:100*q.mark/q.max;
       row+=hcell(p,name+' · '+q.id+' ('+(q.mark==null?'—':q.mark)+'/'+q.max+')');});
@@ -417,23 +549,49 @@ function renderSpot(){
 """
 
 
-def _spotlight_tab(gb: Gradebook, default_name: str) -> str:
+def _spotlight_tab(gb: Gradebook, default_name: str, term: str) -> str:
     return f"""<div class="tab" id="student">
 <h2>Student spotlight</h2>
-<p class="sub">Pick a student to see how they went on every SAC, question by question, and by study-design area.</p>
+<p class="sub">Pick a student to see how they went on every {_esc(term.lower())}, question by question, and by study-design area.</p>
 <select class="picker" id="spot-pick" onchange="renderSpot()"></select>
 <div id="spot-body"></div>
 </div>"""
 
 
+# --------------------------------------------------------------------------- class question analysis (JS)
+
+_CLASSQ_JS = """
+function renderClassQ(){
+  const c=document.getElementById('clsq-pick').value;const el=document.getElementById('clsq-body');
+  const cd=CLASSQ.byClass[c];if(!cd){el.innerHTML='';return}
+  let h='';
+  CLASSQ.assessments.forEach(a=>{
+    let rows='';let flagged=0;
+    a.questions.forEach(q=>{
+      const cp=cd[a.number]?cd[a.number][q.id]:null;
+      const delta=(cp==null||q.cohort==null)?null:cp-q.cohort;
+      const flag=(delta!=null&&delta<=-10);if(flag)flagged++;
+      const concept=[q.area,(q.codes||[]).join(', ')].filter(Boolean).join(' · ');
+      rows+='<tr'+(flag?' class="flag"':'')+'>'+
+        '<td><b>'+q.id+'</b></td>'+
+        hcell(cp,c+' · '+q.id)+
+        '<td class="num" style="color:var(--muted)">'+(q.cohort==null?'—':q.cohort)+'</td>'+
+        '<td class="num '+(delta!=null&&delta<0?'neg':'pos')+'">'+(delta==null?'—':(delta>0?'+':'')+delta)+'</td>'+
+        '<td class="concept-cell">'+(concept||'<span class="muted">—</span>')+'</td></tr>';
+    });
+    h+='<div class="card"><h3>'+a.topic+'</h3>'+
+      '<p class="sub" style="margin:0 0 10px">'+(flagged?('<b>'+flagged+'</b> question(s) where '+c+' is 10+ points below the cohort — worth reviewing.'):(c+' is at or above the cohort on every question here.'))+'</p>'+
+      '<div class="mx"><table class="clsq"><tr><th class="rowh">Q</th><th>'+c+'</th><th>Cohort</th><th>Δ</th><th>Concept / code</th></tr>'+rows+'</table></div></div>';
+  });
+  el.innerHTML=h;
+}
+"""
+
+
 # --------------------------------------------------------------------------- skills
 
 
-def _short_area(area: str) -> str:
-    return area.split("·", 1)[1].strip() if "·" in area else area
-
-
-def _skills_tab(skills: list[SkillsAttainment], pack_name: str) -> str:
+def _skills_tab(skills: list[SkillsAttainment], pack_name: str, term: str) -> str:
     blocks = ""
     for sk in skills:
         areas = sorted(sk.cohort_area, key=lambda a: _pct(*sk.cohort_area[a]) or 0)
@@ -456,7 +614,7 @@ def _skills_tab(skills: list[SkillsAttainment], pack_name: str) -> str:
             f'<td><span class="chip src-{m.source}">{m.source}</span></td></tr>'
             for m in sk.question_maps
         )
-        blocks += (f'<div class="card"><h3>SAC {_esc(sk.sac_number)} — {_esc(sk.sac_topic)}: attainment by study-design area</h3>'
+        blocks += (f'<div class="card"><h3>{_esc(term)} {_esc(sk.sac_number)} — {_esc(sk.sac_topic)}: attainment by study-design area</h3>'
                    f'<div class="mx"><table>{head}{cohort}{rows}</table></div>{_LEGEND}'
                    f'<details><summary>Question → study-design mapping</summary>'
                    f'<table class="plain"><tr><th>Question</th><th>Marks</th><th>Code(s)</th><th>Source</th></tr>{maps}</table></details></div>')
@@ -468,22 +626,25 @@ def _skills_tab(skills: list[SkillsAttainment], pack_name: str) -> str:
 # --------------------------------------------------------------------------- top level
 
 
-def render_gradebook(gb: Gradebook, skills: list[SkillsAttainment] | None = None, pack_name: str = "") -> str:
+def render_gradebook(gb: Gradebook, skills: list[SkillsAttainment] | None = None,
+                     pack_name: str = "", term: str = "SAC") -> str:
+    highlights = _highlights_card(gb, skills, term)
     tabs = [("overview", "Overview")]
-    bodies = [_overview_tab(gb)]
+    bodies = [_overview_tab(gb, term, highlights)]
     for i, sac in enumerate(gb.sacs):
-        tabs.append((f"sac{i}", f"SAC {sac.number}"))
-        bodies.append(_sac_tab(sac, i))
-    if classes(gb):
+        tabs.append((f"sac{i}", f"{term} {sac.number}"))
+        bodies.append(_sac_tab(sac, i, term))
+    has_classes = bool(classes(gb))
+    if has_classes:
         tabs.append(("classes", "Classes"))
-        bodies.append(_classes_tab(gb))
+        bodies.append(_classes_tab(gb, term))
     payload = _spotlight_payload(gb, skills)
     default_name = payload["names"][0] if payload["names"] else ""
     tabs.append(("student", "Student"))
-    bodies.append(_spotlight_tab(gb, default_name))
+    bodies.append(_spotlight_tab(gb, default_name, term))
     if skills:
         tabs.append(("skills", "Skills & content"))
-        bodies.append(_skills_tab(skills, pack_name))
+        bodies.append(_skills_tab(skills, pack_name, term))
 
     def _button(tid: str, label: str) -> str:
         active = ' class="active"' if tid == "overview" else ""
@@ -491,26 +652,32 @@ def render_gradebook(gb: Gradebook, skills: list[SkillsAttainment] | None = None
 
     tab_buttons = "".join(_button(t, l) for t, l in tabs)
     spot_json = json.dumps(payload)
+    classq_json = json.dumps(_classq_payload(gb, skills) if has_classes else {"classes": []})
+    default_class = json.dumps(classes(gb)[0] if has_classes else "")
 
     return f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SAC dashboard — {_esc(gb.source)}</title>
+<title>{_esc(term)} dashboard — {_esc(gb.source)}</title>
 <style>{_CSS}{_heat_css()}</style></head>
 <body><div class="wrap">
-<h1>SAC results dashboard</h1>
-<p class="sub">{_esc(gb.source)} · {len(gb.sacs)} SACs · single-file dashboard — no dev tools, works offline</p>
+<h1>{_esc(term)} results dashboard</h1>
+<p class="sub">{_esc(gb.source)} · {len(gb.sacs)} {_esc(term.lower())}s · single-file dashboard — no dev tools, works offline</p>
 <div class="tabs">{tab_buttons}</div>
 {''.join(bodies)}
 <p class="foot">Generated by Markable · single-file dashboard — safe to email or archive ·
 student names are for the owning teacher's local view and never leave this file</p>
 </div>
 <div id="tip"></div>
-<script>const SPOT={spot_json};
+<script>const SPOT={spot_json};const CLASSQ={classq_json};const TERM={json.dumps(term)};
 {_JS}
 {_SPOT_JS}
+{_CLASSQ_JS}
 (function(){{const sel=document.getElementById('spot-pick');
 SPOT.names.forEach(n=>{{const o=document.createElement('option');o.value=n;o.textContent=n;sel.appendChild(o)}});
-if(SPOT.names.length){{sel.value={json.dumps(default_name)};renderSpot();}}}})();
+if(SPOT.names.length){{sel.value={json.dumps(default_name)};renderSpot();}}
+const cq=document.getElementById('clsq-pick');
+if(cq&&CLASSQ.classes.length){{CLASSQ.classes.forEach(c=>{{const o=document.createElement('option');o.value=c;o.textContent=c;cq.appendChild(o)}});
+cq.value={default_class};renderClassQ();}}}})();
 </script>
 </body></html>"""

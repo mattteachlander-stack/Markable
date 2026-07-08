@@ -12,11 +12,13 @@ def test_self_contained_and_structured():
     assert html.startswith("<!DOCTYPE html>")
     # no external resources — everything inline
     assert "<script src" not in html and "<link" not in html
-    # the ONLY permitted remote host is Anthropic's API (the teacher-opt-in
-    # cloud features); no CDN scripts, fonts, or trackers.
+    # the ONLY permitted remote hosts: Anthropic's API (teacher-opt-in cloud
+    # features) and plain links to the chat AIs for the no-key prompt path.
+    # No CDN scripts, fonts, or trackers.
     import re
     hosts = set(re.findall(r"https://([a-z0-9.-]+)", html.split("</title>", 1)[1]))
-    assert hosts <= {"api.anthropic.com"}, hosts
+    assert hosts <= {"api.anthropic.com", "claude.ai", "chatgpt.com",
+                     "copilot.microsoft.com"}, hosts
 
 
 def test_has_nav_landing_and_tools():
@@ -87,10 +89,16 @@ def test_assessment_optimiser_page():
                "Assessment optimiser", "Assessment Optimiser"):  # page + tool card
         assert el in html, el
     # it re-scores the optimised output locally for the after-gauge
-    assert "analyseReadiness(out.improved_markdown)" in html
+    assert "analyseReadiness(md).score" in html and "renderOptimised" in html
     # export format selector: markdown, Word or PDF — generated client-side
     for el in ("opt-fmt", "downloadOpt", "mdToDocx", "mdToPdf", "makeZip", "crc32",
                "wordprocessingml.document", "application/pdf"):
+        assert el in html, el
+    # Option B: no API key — Markable packages a prompt for the teacher's own
+    # AI (Claude / ChatGPT / Copilot dropdown), then re-scores the pasted result
+    for el in ("chat-ai", "genPrompt", "buildChatPrompt", "copyPrompt", "pasteBack",
+               "claude.ai", "chatgpt.com", "copilot.microsoft.com",
+               "THE DRAFT TEST", "paste-back"):
         assert el in html, el
 
 

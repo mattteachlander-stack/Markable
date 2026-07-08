@@ -222,33 +222,29 @@ def _sac_tab(sac: SAC, idx: int) -> str:
         marks = [st.marks.get(q.id, 0.0) for st in sac.students if st.name in subset]
         return None if not marks or not q.max_marks else sum(marks) / (q.max_marks * len(marks))
 
-    # Lengthways: questions along the top, cohort segments down the side.
-    head = '<tr><th class="rowh">Cohort ↓ / Question →</th>' + "".join(
-        f'<th data-tip-title="Question {_esc(q.id)}" data-tip="Max {q.max_marks:g} marks">{_esc(q.id)}</th>'
-        for q in sac.questions
-    ) + "</tr>"
-    seg_rows = ""
-    for s, label in seg_names:
+    # Questions down the rows, cohort quartiles across the columns.
+    head = ('<tr><th class="rowh">Question</th>'
+            + "".join(f"<th>{label}</th>" for _s, label in seg_names)
+            + "<th>Difficulty</th></tr>")
+    rows = ""
+    for q in sac.questions:
         cells = ""
-        for q in sac.questions:
+        for s, label in seg_names:
             f = facility(q, seg_sets[s])
             cells += _hcell(None if f is None else f * 100, f"{q.id} · {label}",
                             "" if f is None else f"{f*100:.0f}% of marks (max {q.max_marks:g})")
-        cls = ' class="cohort"' if s == 0 else ""
-        seg_rows += f'<tr{cls}><th class="rowh">{label}</th>{cells}</tr>'
-    diff_cells = ""
-    for q in sac.questions:
-        f = facility(q, seg_sets[0]) or 0
-        d = _difficulty(f)
-        diff_cells += f'<td class="diff"><span class="chip {d}">{d}</span></td>'
-    diff_row = f'<tr><th class="rowh">Difficulty</th>{diff_cells}</tr>'
+        f_all = facility(q, seg_sets[0]) or 0
+        d = _difficulty(f_all)
+        rows += (f'<tr><th class="rowh" data-tip-title="Question {_esc(q.id)}" '
+                 f'data-tip="Max {q.max_marks:g} marks · cohort {f_all*100:.0f}%">{_esc(q.id)}</th>'
+                 f'{cells}<td class="diff"><span class="chip {d}">{d}</span></td></tr>')
 
     return f"""<div class="tab" id="sac{idx}">
 <h2>SAC {_esc(sac.number)} — {_esc(sac.topic)}</h2>
 <div class="kpis">{tiles}</div>
 <div class="card"><h3>Score distribution</h3>{_histogram(values)}</div>
-<div class="card"><h3>Question performance — cohort quartiles × questions</h3>
-<div class="mx"><table>{head}{seg_rows}{diff_row}</table></div>{_LEGEND}
+<div class="card"><h3>Question performance by cohort quartile</h3>
+<div class="mx"><table>{head}{rows}</table></div>{_LEGEND}
 <p class="foot">Each cell is the % of that question's marks earned by that group. easy ≥80% · moderate 50-79% · difficult &lt;50%.</p></div>
 </div>"""
 

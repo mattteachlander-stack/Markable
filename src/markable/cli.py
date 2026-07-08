@@ -338,6 +338,19 @@ def tag(
 
 
 @app.command()
+def studio(
+    out: Path = typer.Option(Path("markable.html"), "-o", "--out", help="Output hub file."),
+) -> None:
+    """Generate the Markable Studio hub — a single-file landing page + upload tools."""
+    from .studio_html import render_studio
+
+    out.write_text(render_studio(), encoding="utf-8")
+    console.print(f"[green]✓[/green] Markable Studio → [bold]{out}[/bold]")
+    console.print("  Open it in any browser. Keep generated report files (dashboard.html, …)")
+    console.print("  in the same folder and they'll open from the left-hand menu.")
+
+
+@app.command()
 def gradebook(
     workbook: Path = typer.Argument(..., exists=True, help="Teacher SAC gradebook (.xlsx)."),
     study_design: Optional[str] = typer.Option(

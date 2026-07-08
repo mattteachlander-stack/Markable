@@ -44,7 +44,16 @@ markable report <package> --curriculum <id> → curriculum_report.html + CSVs �
 markable report <package> --dashboard → dashboard.html (Tier 1, electric green) ✓
 markable analyse <draft|package> --curriculum <id> → test_analysis.html + CSV ✓
 markable gradebook <xlsx> [--study-design <id> --map sacmap.yaml] → sac_dashboard.html ✓
+markable studio → markable.html (single-file hub: landing + left nav + upload boxes) ✓
 ```
+
+`studio` emits the **hub**: one self-contained HTML landing page (tool cards +
+instructions + inline-SVG hero) with a left-nav that opens the generated report
+files (kept beside it) in an iframe, and **two client-side upload boxes** that
+run with no Python/dev tools — a results `.xlsx` → live dashboard, and a test
+`.docx/.md/.txt` → AI-marking readiness analysis. The in-browser engine reads
+ZIP members via the built-in `DecompressionStream('deflate-raw')` (no JS
+libraries) and ports the gradebook renderer to JS.
 
 `gradebook` is a *marks-already-exist* path (no scanning): it reads a teacher's
 per-SAC spreadsheet (question × student grid) and renders a tabbed single-file
@@ -101,6 +110,8 @@ src/markable/
   gradebook.py         # read teacher SAC xlsx → Gradebook/SAC/GradeStudent (xlsx extra)
   studydesign.py       # map SAC questions → study-design codes → per-student attainment
   gradebook_html.py    # tabbed single-file SAC dashboard (overview/per-SAC/skills)
+  studio_html.py       # `studio`: single-file hub — landing + left nav + client-side
+                       # upload boxes (in-browser xlsx→dashboard, doc→readiness)
   cli.py               # typer app wiring all commands
 
 curricula/<pack-id>/   # imported packs: pack.yaml + source_meta.json

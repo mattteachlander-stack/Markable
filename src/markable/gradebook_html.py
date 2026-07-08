@@ -1,5 +1,9 @@
 """Render the gradebook dashboard — one self-contained, tabbed HTML file.
 
+(A JS port of this renderer also lives in `studio_html.py` for the in-browser
+upload box; keep the two visual systems in step when either changes.)
+
+
 Power BI-style, electric-green, no libraries or network (a few lines of vanilla
 JS drive tab switching + the shared tooltip). Tabs:
 

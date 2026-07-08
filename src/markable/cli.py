@@ -528,6 +528,38 @@ def analyse(
     )
 
 
+@app.command()
+def improve(
+    draft: Path = typer.Argument(..., exists=True, help="Draft test (.md, .txt or .docx)."),
+    out: Optional[Path] = typer.Option(None, "-o", "--out", help="Upgraded test path (default: <draft>.improved.md)."),
+    model: str = typer.Option("claude-opus-4-8", help="Anthropic model id."),
+) -> None:
+    """Send a draft test to Claude with the upgrade pack → AI-marking-ready version."""
+    from .improve import extract_text, run_improve
+
+    try:
+        text = extract_text(draft)
+        result = run_improve(text, model=model)
+    except (RuntimeError, ValueError) as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
+
+    target = out or draft.with_suffix(".improved.md")
+    target.write_text(result["improved_markdown"], encoding="utf-8")
+
+    table = Table(title="Changes made (verify anything inferred)", show_edge=False)
+    for col in ("Item", "Change", "Why"):
+        table.add_column(col)
+    for c in result["changes"]:
+        table.add_row(c["question_id"], c["change"], c["reason"])
+    console.print(table)
+    console.print(f"\n{result['summary']}")
+    console.print(
+        f"[green]✓[/green] Upgraded test → [bold]{target}[/bold] · review it, then "
+        f"`markable ingest {target}` to build the scan-ready paper + key."
+    )
+
+
 @curriculum_app.command("import")
 def curriculum_import(
     source: Path = typer.Argument(..., exists=True, help="Curriculum source (pack.yaml; MRAC/PDF later)."),

@@ -45,6 +45,7 @@ markable report <package> --dashboard → dashboard.html (Tier 1, electric green
 markable analyse <draft|package> --curriculum <id> → test_analysis.html + CSV ✓
 markable gradebook <xlsx> [--study-design <id> --map sacmap.yaml] → sac_dashboard.html ✓
 markable studio → markable.html (single-file hub: landing + left nav + upload boxes) ✓
+markable improve <draft> → <draft>.improved.md + change log (Claude upgrade pack)   ✓
 markable powerbi <xlsx> [--study-design <id> --map sacmap.yaml] → tidy star-schema CSVs + guide ✓
 ```
 
@@ -55,13 +56,21 @@ logs data-quality issues (`data_quality.csv`), and writes `POWER_BI_GUIDE.md`
 (load order, relationships, DAX measures, visual-by-visual build steps). No
 `.pbit` is fabricated — clean data + guide is the dependable path.
 
-`studio` emits the **hub**: one self-contained HTML landing page (tool cards +
-instructions + inline-SVG hero) with a left-nav that opens the generated report
-files (kept beside it) in an iframe, and **two client-side upload boxes** that
-run with no Python/dev tools — a results `.xlsx` → live dashboard, and a test
-`.docx/.md/.txt` → AI-marking readiness analysis. The in-browser engine reads
-ZIP members via the built-in `DecompressionStream('deflate-raw')` (no JS
-libraries) and ports the gradebook renderer to JS.
+`studio` emits the **hub**: one self-contained HTML landing page (tool cards
+with jump-to-tool buttons + instructions + inline-SVG hero) with a left-nav
+that opens the generated report files (kept beside it) in an iframe, and **two
+client-side upload boxes** that run with no Python/dev tools — a results
+`.xlsx` → live dashboard, and a test `.docx/.md/.txt` → AI-marking readiness
+analysis. The in-browser engine reads ZIP members via the built-in
+`DecompressionStream('deflate-raw')` (no JS libraries) and ports the gradebook
+renderer to JS. Two **teacher-opt-in cloud features** call api.anthropic.com
+directly from the browser (the teacher's own key, localStorage only, CORS
+opt-in header): the readiness card's "Upgrade with AI" (sends the test +
+`improve.py`'s INSTRUCTION_PACK, returns an ingest-ready rewrite + change log)
+and the **AI marking studio** page (upload test + answer key + scanned scripts
+→ per-question judgements + CSV; scans as image blocks, PDFs as document
+blocks; test+key ride in a cached system block). `markable improve` is the CLI
+twin of the upgrade flow — both send the identical instruction pack.
 
 `gradebook` is a *marks-already-exist* path (no scanning): it reads a teacher's
 per-SAC spreadsheet (question × student grid) and renders a tabbed single-file

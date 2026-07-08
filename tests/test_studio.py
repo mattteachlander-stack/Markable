@@ -12,7 +12,11 @@ def test_self_contained_and_structured():
     assert html.startswith("<!DOCTYPE html>")
     # no external resources — everything inline
     assert "<script src" not in html and "<link" not in html
-    assert "https://" not in html.split("</title>", 1)[1]
+    # the ONLY permitted remote host is Anthropic's API (the teacher-opt-in
+    # cloud features); no CDN scripts, fonts, or trackers.
+    import re
+    hosts = set(re.findall(r"https://([a-z0-9.-]+)", html.split("</title>", 1)[1]))
+    assert hosts <= {"api.anthropic.com"}, hosts
 
 
 def test_has_nav_landing_and_tools():
@@ -40,6 +44,33 @@ def test_has_working_upload_boxes():
         assert fn in html, fn
     # ramps embedded for the in-browser renderer
     assert "const RAMPS=" in html
+
+
+def test_tool_cards_have_action_buttons():
+    """Every function card carries a button that jumps to the tool doing the job."""
+    html = render_studio()
+    assert html.count("tool-go") >= 7  # one per tool card
+    for js in ("drop-doc-input", "drop-xlsx-input", "show('aimark')",
+               "openReportByFile('curriculum_report.html')",
+               "openReportByFile('test_analysis.html')"):
+        assert js in html, js
+
+
+def test_ai_cloud_features_present():
+    """Upgrade-with-AI + the AI marking studio page (test/key/scans workflow)."""
+    html = render_studio()
+    # the readiness card offers the AI upgrade; the pack is shared with the CLI
+    from markable.improve import INSTRUCTION_PACK
+    assert "upgradeTest" in html
+    assert "UNIQUE STABLE IDS" in INSTRUCTION_PACK and "IMPROVE_PACK" in html
+    # AI marking studio: three-step workflow + key management + direct API calls
+    assert 'id="view-aimark"' in html
+    for el in ("aim-test-input", "aim-key-input", "aim-scans-input",
+               "markScans", "MARK_SCHEMA", "api.anthropic.com",
+               "anthropic-dangerous-direct-browser-access"):
+        assert el in html, el
+    # scans can be images or PDFs (PDF → document block)
+    assert "application/pdf" in html
 
 
 def test_in_browser_dashboard_has_gradebook_parity():

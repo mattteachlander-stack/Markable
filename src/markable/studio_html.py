@@ -68,42 +68,50 @@ _HERO_SVG = """
 </svg>
 """
 
-# Tool cards: (icon-emoji, title, blurb, how-to). Ordered along the pipeline.
+# Tool cards: (icon, title, blurb, how-to, button-label, button-onclick).
+# Every card carries a button that jumps straight to the tool that does the job.
 _TOOLS = [
     ("📝", "Ingest &amp; Build",
      "Turn a messy Word/markdown draft into a scan-friendly, machine-markable paper "
      "with unique question IDs, answer zones, a per-page QR code and a structured "
      "marking key — the prep that makes AI marking reliable.",
      "CLI: <code>markable ingest draft.md</code> then <code>markable build packages/my-test</code>. "
-     "Or drop a draft in the <b>AI-marking readiness</b> box below to see what needs fixing first."),
+     "Or drop a draft in the <b>AI-marking readiness</b> box below to see what needs fixing first.",
+     "Prep my test", "show('home');scrollToEl('drop-doc');$('drop-doc-input').click()"),
     ("🖨️", "Scan",
      "Read scanned scripts back in any order or orientation: deskews to the page's "
      "registration marks, matches each page by QR, and crops every answer zone.",
-     "CLI: <code>markable scan packages/my-test scans/*.pdf --id-map ids.yaml</code>."),
+     "CLI: <code>markable scan packages/my-test scans/*.pdf --id-map ids.yaml</code>.",
+     "Upload scans → AI marking", "show('aimark')"),
     ("🤖", "Mark",
      "AI marks per question across the whole cohort against your key, returning marks, "
      "evidence and feedback — anything uncertain goes to a human review queue.",
      "CLI: <code>markable mark packages/my-test --batch</code> (needs an API key). "
-     "Nothing below the confidence threshold is auto-finalised."),
+     "Nothing below the confidence threshold is auto-finalised.",
+     "Mark with Claude", "show('aimark')"),
     ("📊", "Report &amp; Dashboard",
      "Scores, item analysis (facility, discrimination, distractors) and a single-file "
      "dashboard: cohort KPIs, score distribution and a question × quartile matrix.",
      "CLI: <code>markable report packages/my-test --dashboard</code> → <b>dashboard.html</b>, "
-     "then open it from the menu on the left."),
+     "then open it from the menu on the left.",
+     "Build a dashboard", "show('home');scrollToEl('drop-xlsx');$('drop-xlsx-input').click()"),
     ("🎯", "Curriculum Report",
      "Standards-referenced attainment against a curriculum: a green→red outcome "
      "heatmap per student, strand rollups, misconceptions and a coverage audit.",
      "CLI: <code>markable tag …</code> then <code>markable report … --curriculum vc2-science</code> "
-     "→ <b>curriculum_report.html</b>."),
+     "→ <b>curriculum_report.html</b>.",
+     "View curriculum report", "openReportByFile('curriculum_report.html')"),
     ("🔎", "Test Analysis",
      "Point Markable at a test and get a per-item map: marks, strand / concept area, "
      "VCAA/ACARA code, cognitive level (Bloom's) and the specific skill each item targets.",
-     "CLI: <code>markable analyse draft.md --curriculum vc2-science</code> → <b>test_analysis.html</b>."),
+     "CLI: <code>markable analyse draft.md --curriculum vc2-science</code> → <b>test_analysis.html</b>.",
+     "View test analysis", "openReportByFile('test_analysis.html')"),
     ("📈", "SAC Gradebook",
      "Already have marks in a spreadsheet? Upload a per-SAC results workbook and get an "
      "instant multi-tab dashboard — overall, per-SAC question analysis, and per-student "
      "skills mapped to the study design.",
-     "Use the <b>Results spreadsheet</b> upload box below — it runs entirely in your browser."),
+     "Use the <b>Results spreadsheet</b> upload box below — it runs entirely in your browser.",
+     "Upload my results", "show('home');scrollToEl('drop-xlsx');$('drop-xlsx-input').click()"),
 ]
 
 # (nav-id, label, kind, target). kind: 'view' (internal), 'file' (iframe sibling).
@@ -118,11 +126,14 @@ _REPORTS = [
 
 def _tool_cards() -> str:
     out = []
-    for icon, title, blurb, how in _TOOLS:
+    for icon, title, blurb, how, btn_label, btn_js in _TOOLS:
+        # onclick JS goes through an HTML attribute — escape the quotes it carries.
+        js = btn_js.replace('"', "&quot;")
         out.append(f"""<div class="tool">
   <div class="tool-icon">{icon}</div>
   <div class="tool-body"><h3>{title}</h3><p>{blurb}</p>
-  <p class="how"><span>How</span> {how}</p></div>
+  <p class="how"><span>How</span> {how}</p>
+  <button class="btn tool-go" onclick="{js}">{btn_label} →</button></div>
 </div>""")
     return "".join(out)
 
@@ -359,6 +370,32 @@ table.plain td{border-bottom:1px solid var(--grid);padding:6px 10px 6px 0}
 .foot{color:var(--muted);font-size:12px;margin-top:22px}
 .li-good::before{content:"✓ ";color:var(--accent);font-weight:700}
 .li-warn::before{content:"! ";color:#a15c00;font-weight:700}
+/* AI marking studio */
+.beta-chip{display:inline-block;vertical-align:middle;margin-left:8px;font-size:11px;font-weight:600;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);
+  border-radius:99px;padding:2px 10px}
+.keyrow{display:flex;justify-content:space-between;gap:18px;align-items:center;flex-wrap:wrap;
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin:14px 0 18px}
+.keyfield{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.keyfield input{padding:8px 10px;border-radius:8px;border:1px solid var(--border);
+  background:var(--page);color:var(--ink);font:inherit;width:260px}
+.aim-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.aim-step{position:relative}
+.aim-step .stepnum{position:absolute;top:10px;left:12px;width:24px;height:24px;border-radius:50%;
+  background:var(--accent);color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center}
+.aim-step.ok{border-color:var(--accent);border-style:solid}
+.aim-actions{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}
+.tool-go{margin-top:10px;padding:7px 14px;font-size:13px}
+.mark-total{font-size:26px;font-weight:700}
+.chip.review{border-color:#e79a41;color:#a15c00}
+table.marks{border-collapse:collapse;width:100%;font-size:13px}
+table.marks th{color:var(--ink-2);font-weight:500;text-align:left;border-bottom:1px solid var(--baseline);padding:6px 8px 6px 0}
+table.marks td{border-bottom:1px solid var(--grid);padding:6px 8px 6px 0;vertical-align:top}
+table.marks td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.changes li{margin-bottom:6px}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--accent);border-top-color:transparent;
+  border-radius:50%;animation:spin .8s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
 .tab-h{font-size:18px;margin:4px 0 12px}
 .muted{color:var(--muted)}
 .picker{padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);
@@ -455,10 +492,16 @@ def render_studio(embedded: dict | None = None) -> str:
         "heatLight": [b[0] for b in _HEAT],
         "heatDark": [b[2] for b in _HEAT],
     }
+    from .improve import IMPROVE_SCHEMA, INSTRUCTION_PACK
+
     ramp_js = (
         "const RAMPS=" + json.dumps(ramps) + ";\n"
         + "const PACKS=" + json.dumps(_packs_payload()) + ";\n"
-        + "const STUDIO_CSS=" + json.dumps(_CSS) + ";"
+        + "const STUDIO_CSS=" + json.dumps(_CSS) + ";\n"
+        # The CLI (`markable improve`) and the in-browser upgrader send the
+        # identical instruction package — one source of truth in improve.py.
+        + "const IMPROVE_PACK=" + json.dumps(INSTRUCTION_PACK) + ";\n"
+        + "const IMPROVE_SCHEMA=" + json.dumps(IMPROVE_SCHEMA) + ";"
     )
 
     landing = f"""
@@ -542,6 +585,68 @@ def render_studio(embedded: dict | None = None) -> str:
 </div>
 """
 
+    aimark = """
+<div class="view" id="view-aimark">
+  <h1>🤖 AI marking studio <span class="beta-chip">cloud</span></h1>
+  <p class="lead">Upload your test, your answer key, and the scanned scripts — Claude marks them
+  in the cloud and returns per-question marks, evidence and feedback. Uncertain items are
+  flagged for your review; you stay the marker of record.</p>
+
+  <div class="keyrow card">
+    <div>
+      <h3 style="margin:0 0 4px">Your Anthropic API key</h3>
+      <p class="hint" style="margin:0">Needed for the cloud steps (upgrade &amp; marking). Stored only in this
+      browser, sent only to Anthropic. Get one at console.anthropic.com.</p>
+    </div>
+    <div class="keyfield">
+      <input id="api-key" type="password" placeholder="sk-ant-…" autocomplete="off">
+      <button class="btn ghost" onclick="saveKey()">Save</button>
+      <span class="status" id="key-status"></span>
+    </div>
+  </div>
+
+  <div class="aim-grid">
+    <div class="drop aim-step" id="drop-aim-test">
+      <div class="stepnum">1</div><div class="big">📄</div>
+      <h3>The test</h3>
+      <p>The question paper (.docx, .md or .txt).</p>
+      <button class="btn" onclick="$('aim-test-input').click()">Choose test</button>
+      <input id="aim-test-input" type="file" accept=".docx,.md,.txt,.markdown" hidden>
+      <div class="status" id="aim-test-status"></div>
+    </div>
+    <div class="drop aim-step" id="drop-aim-key">
+      <div class="stepnum">2</div><div class="big">🔑</div>
+      <h3>The answer key</h3>
+      <p>Marking scheme / answers / rubric (.docx, .md, .txt or .yaml).</p>
+      <button class="btn" onclick="$('aim-key-input').click()">Choose answer key</button>
+      <input id="aim-key-input" type="file" accept=".docx,.md,.txt,.markdown,.yaml,.yml" hidden>
+      <div class="status" id="aim-key-status"></div>
+    </div>
+    <div class="drop aim-step" id="drop-aim-scans">
+      <div class="stepnum">3</div><div class="big">🖨️</div>
+      <h3>The scanned scripts</h3>
+      <p>Student scripts as images or PDFs — one file per student works best.</p>
+      <button class="btn" onclick="$('aim-scans-input').click()">Choose scans</button>
+      <input id="aim-scans-input" type="file" accept=".png,.jpg,.jpeg,.webp,.gif,.pdf" multiple hidden>
+      <div class="status" id="aim-scans-status"></div>
+    </div>
+  </div>
+
+  <div class="aim-actions">
+    <button class="btn" id="aim-mark-btn" onclick="markScans()">🤖 Mark the scripts with Claude</button>
+    <button class="btn ghost" onclick="upgradeFromAim()">🪄 Only upgrade the test (no scans needed)</button>
+  </div>
+
+  <div class="result" id="aim-result"></div>
+
+  <div class="privacy-note">🔒 <b>Privacy:</b> files go directly from this browser to Anthropic's
+  API over HTTPS — there is no Markable server. Cover or crop student names before scanning and
+  use student IDs where possible; for fully pseudonymised marking (random aliases, local
+  re-identification key) use the CLI pipeline: <code>markable scan</code> →
+  <code>markable mark</code>.</div>
+</div>
+"""
+
     import html as _html
 
     embedded = embedded or {}
@@ -578,12 +683,15 @@ def render_studio(embedded: dict | None = None) -> str:
     <h4>Upload</h4>
     <button class="nav-item" onclick="show('home');document.getElementById('drop-xlsx-input').click()">📈 Results → dashboard</button>
     <button class="nav-item" onclick="show('home');document.getElementById('drop-doc-input').click()">📝 Test → AI-marking prep</button>
+    <h4>AI cloud</h4>
+    <button class="nav-item" data-view="aimark" onclick="show('aimark',this)">🤖 AI marking studio</button>
     <h4>Reports</h4>
     {_report_nav()}
     <div class="nav-foot">{nav_foot}</div>
   </nav>
   <main class="main">
     {landing}
+    {aimark}
     {_guide_view()}
     {report_frames}
     <div class="iframe-wrap" id="frame-missing"><div class="iframe-missing" style="display:block">
@@ -1099,6 +1207,9 @@ function renderReadiness(name,rep){
     '</b> with marks allocated. <span class="chip '+grade+'">'+(rep.score>=70?'Close — minor prep':'Needs structuring')+'</span></p>'+
     '<p style="margin:0;color:var(--ink-2);font-size:13px">Run <code>markable ingest</code> then <code>markable build</code> to auto-apply the fixes below and produce a scan-ready paper + marking key.</p></div></div>'+
     '<ul style="margin:0;padding-left:2px;list-style:none;line-height:1.9">'+items+'</ul>'+
+    '<div class="aim-actions" style="margin:14px 0 4px">'+
+    '<button class="btn" onclick="upgradeTest(\'doc-result\')">🪄 Upgrade this test with AI</button>'+
+    '<span class="hint" style="align-self:center">Sends the test + Markable\'s upgrade instructions to Claude; you get back a restructured, AI-marking-ready version with a change log.</span></div>'+
     '<p class="foot">This readiness check runs locally. The build step (unique IDs, answer zones, QR codes, a structured key) is what makes AI marking reliable and auditable.</p></div>';
 }
 
@@ -1129,6 +1240,7 @@ wireDrop('drop-doc','drop-doc-input',async file=>{
   try{
     const text=await docText(file.name,await file.arrayBuffer());
     if(!text.trim())throw new Error('No readable text found in that document.');
+    LAST_DOC={name:file.name,text};
     const rep=analyseReadiness(text);
     $('doc-result').innerHTML='<h2 class="section">Readiness</h2>'+renderReadiness(file.name,rep);
     $('doc-result').classList.add('active');
@@ -1136,4 +1248,191 @@ wireDrop('drop-doc','drop-doc-input',async file=>{
     $('doc-result').scrollIntoView({behavior:'smooth'});
   }catch(err){st.className='status err';st.textContent='Could not analyse that file: '+err.message}
 });
+
+/* ================= AI cloud: key, transport, upgrade, marking ================= */
+function scrollToEl(id){const el=$(id);if(el)el.scrollIntoView({behavior:'smooth',block:'center'})}
+const KEY_STORE='markable_api_key';
+function getKey(){return (localStorage.getItem(KEY_STORE)||'').trim()}
+function saveKey(){
+  localStorage.setItem(KEY_STORE,$('api-key').value.trim());
+  const s=$('key-status');s.className='status';s.textContent=getKey()?'✓ Saved in this browser.':'Cleared.';
+}
+function needKey(){
+  if(getKey())return true;
+  show('aimark');scrollToEl('api-key');$('api-key').focus();
+  const s=$('key-status');s.className='status err';
+  s.textContent='Add your Anthropic API key first — the cloud steps need it.';
+  return false;
+}
+async function callClaude(body){
+  // Direct browser → Anthropic; the CORS opt-in header acknowledges the key
+  // lives client-side (it is the teacher's own key, stored only locally).
+  const res=await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'content-type':'application/json','x-api-key':getKey(),
+      'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify(body)});
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok){throw new Error((data.error&&data.error.message)||('API error '+res.status))}
+  if(data.stop_reason==='refusal')throw new Error('the model declined to process this document');
+  const block=(data.content||[]).find(b=>b.type==='text');
+  if(!block)throw new Error('no text in the response');
+  return JSON.parse(block.text);
+}
+function busy(el,msg){el.innerHTML='<div class="card"><p><span class="spin"></span>'+esc(msg)+
+  ' <span class="muted">(can take a minute — Claude is thinking)</span></p></div>';el.classList.add('active')}
+function dlButton(label,content,fname,mime){
+  const id='dl'+Math.random().toString(36).slice(2,8);
+  setTimeout(()=>{const b=$(id);if(b)b.onclick=()=>{
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([content],{type:mime||'text/plain'}));
+    a.download=fname;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)}},0);
+  return '<button class="btn" id="'+id+'">'+esc(label)+'</button>';
+}
+
+/* ---------- upgrade: test + instruction pack → improved test ---------- */
+let LAST_DOC=null;
+async function upgradeTest(resultId){
+  if(!LAST_DOC){show('home');scrollToEl('drop-doc');return}
+  if(!needKey())return;
+  const el=$(resultId);busy(el,'Upgrading “'+LAST_DOC.name+'” for AI marking…');
+  try{
+    const out=await callClaude({
+      model:'claude-opus-4-8',max_tokens:16000,thinking:{type:'adaptive'},
+      system:[{type:'text',text:IMPROVE_PACK,cache_control:{type:'ephemeral'}}],
+      output_config:{format:{type:'json_schema',schema:IMPROVE_SCHEMA}},
+      messages:[{role:'user',content:'Upgrade this draft test:\n\n'+LAST_DOC.text}]});
+    const changes=(out.changes||[]).map(c=>'<li><b>'+esc(c.question_id)+'</b> — '+esc(c.change)+
+      ' <span class="muted">('+esc(c.reason)+')</span></li>').join('');
+    const fname=LAST_DOC.name.replace(/\.[^.]+$/,'')+'.improved.md';
+    el.innerHTML='<h2 class="section">✨ Upgraded test</h2>'+
+      '<div class="card"><p style="margin-top:0">'+esc(out.summary||'')+'</p>'+
+      '<div class="aim-actions">'+dlButton('⬇ Download '+fname,out.improved_markdown,fname,'text/markdown')+
+      '</div>'+
+      '<h3>What changed <span class="muted">(verify anything inferred)</span></h3>'+
+      '<ul class="changes">'+changes+'</ul>'+
+      '<h3>Preview</h3><pre style="white-space:pre-wrap;background:var(--page);border:1px solid var(--border);border-radius:8px;padding:12px;max-height:420px;overflow:auto">'+
+      esc(out.improved_markdown)+'</pre>'+
+      '<p class="foot">Review the changes, then run <code>markable ingest</code> → <code>markable build</code> on the downloaded file for a scan-ready paper + marking key.</p></div>';
+    el.classList.add('active');el.scrollIntoView({behavior:'smooth'});
+  }catch(err){el.innerHTML='<div class="card"><p class="status err" style="display:block">Upgrade failed: '+esc(err.message)+'</p></div>'}
+}
+function upgradeFromAim(){
+  if(AIM.test){LAST_DOC=AIM.test;upgradeTest('aim-result')}
+  else if(LAST_DOC){upgradeTest('aim-result')}
+  else{const s=$('aim-test-status');s.className='status err';s.textContent='Add the test first (step 1).'}
+}
+
+/* ---------- cloud marking: test + key + scans → judgements ---------- */
+const AIM={test:null,key:null,scans:[]};
+const MARK_SCHEMA={type:'object',properties:{
+  student_label:{type:'string'},
+  judgements:{type:'array',items:{type:'object',properties:{
+    question:{type:'string'},marks_awarded:{type:'number'},marks_available:{type:'number'},
+    transcription:{type:'string'},evidence:{type:'string'},feedback:{type:'string'},
+    confidence:{type:'number'},needs_review:{type:'boolean'},review_reason:{type:['string','null']}},
+    required:['question','marks_awarded','marks_available','transcription','evidence','feedback','confidence','needs_review','review_reason'],
+    additionalProperties:false}}},
+  required:['student_label','judgements'],additionalProperties:false};
+function aimOk(id){$(id.replace('-input','')).classList.add('ok')}
+function b64(buf){let s='';const u=new Uint8Array(buf);
+  for(let i=0;i<u.length;i+=32768)s+=String.fromCharCode.apply(null,u.subarray(i,i+32768));
+  return btoa(s)}
+async function fileBlock(f){
+  const data=b64(await f.arrayBuffer());
+  if(/\.pdf$/i.test(f.name))
+    return {type:'document',source:{type:'base64',media_type:'application/pdf',data}};
+  const mt=/\.png$/i.test(f.name)?'image/png':/\.webp$/i.test(f.name)?'image/webp':
+    /\.gif$/i.test(f.name)?'image/gif':'image/jpeg';
+  return {type:'image',source:{type:'base64',media_type:mt,data}};
+}
+wireDrop('drop-aim-test','aim-test-input',async f=>{
+  const s=$('aim-test-status');
+  try{AIM.test={name:f.name,text:await docText(f.name,await f.arrayBuffer())};
+    if(!AIM.test.text.trim())throw new Error('no readable text');
+    s.className='status';s.textContent='✓ '+f.name;aimOk('drop-aim-test');
+  }catch(e){AIM.test=null;s.className='status err';s.textContent=e.message}
+});
+wireDrop('drop-aim-key','aim-key-input',async f=>{
+  const s=$('aim-key-status');
+  try{AIM.key={name:f.name,text:await docText(f.name,await f.arrayBuffer())};
+    if(!AIM.key.text.trim())throw new Error('no readable text');
+    s.className='status';s.textContent='✓ '+f.name;aimOk('drop-aim-key');
+  }catch(e){AIM.key=null;s.className='status err';s.textContent=e.message}
+});
+(function(){
+  // scans box takes multiple files, so it gets its own wiring
+  const input=$('aim-scans-input'),drop=$('drop-aim-scans');
+  if(!input)return;
+  function add(files){
+    for(const f of files)AIM.scans.push(f);
+    const s=$('aim-scans-status');s.className='status';
+    s.textContent='✓ '+AIM.scans.length+' script(s) ready.';
+    if(AIM.scans.length)aimOk('drop-aim-scans');
+  }
+  input.addEventListener('change',e=>add(e.target.files));
+  ['dragover','dragenter'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('drag')}));
+  ['dragleave','dragend','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('drag')}));
+  drop.addEventListener('drop',e=>add(e.dataTransfer.files));
+})();
+const MARK_SYS_PREFIX='You are marking scanned student scripts for a paper-based school assessment.\n'+
+  'You will see one student\'s scanned script (images or a PDF). Mark EVERY question strictly\n'+
+  'against the answer key below. Transcribe what the student wrote so transcription errors are\n'+
+  'visible, cite evidence for the marks you award, and write one sentence of warm, specific\n'+
+  'feedback per question. If a response is illegible, blank, or ambiguous, set needs_review=true\n'+
+  'and award conservatively — never guess. If the script shows a student name or ID, report it\n'+
+  'as student_label; otherwise use the filename.\n\n';
+async function markScans(){
+  const el=$('aim-result');
+  if(!AIM.test||!AIM.key||!AIM.scans.length){
+    el.innerHTML='<div class="card"><p class="status err" style="display:block">Add all three: the test (1), the answer key (2) and at least one scanned script (3).</p></div>';
+    el.classList.add('active');return}
+  if(!needKey())return;
+  const sys=[{type:'text',
+    text:MARK_SYS_PREFIX+'=== THE TEST ===\n'+AIM.test.text+'\n\n=== THE ANSWER KEY ===\n'+AIM.key.text,
+    cache_control:{type:'ephemeral'}}];  // shared across the cohort — cached
+  const results=[];
+  for(let i=0;i<AIM.scans.length;i++){
+    const f=AIM.scans[i];
+    busy(el,'Marking script '+(i+1)+' of '+AIM.scans.length+' — '+f.name+' …');
+    try{
+      const out=await callClaude({
+        model:'claude-opus-4-8',max_tokens:16000,thinking:{type:'adaptive'},system:sys,
+        output_config:{format:{type:'json_schema',schema:MARK_SCHEMA}},
+        messages:[{role:'user',content:[await fileBlock(f),
+          {type:'text',text:'Mark this script. Filename: '+f.name}]}]});
+      out._file=f.name;results.push(out);
+    }catch(err){results.push({student_label:f.name,_file:f.name,_error:err.message,judgements:[]})}
+  }
+  renderMarks(el,results);
+}
+function renderMarks(el,results){
+  let csv='student,question,marks_awarded,marks_available,confidence,needs_review,feedback\n';
+  let cards='';
+  results.forEach(r=>{
+    if(r._error){cards+='<div class="card"><h3>'+esc(r.student_label)+'</h3>'+
+      '<p class="status err" style="display:block">Failed: '+esc(r._error)+'</p></div>';return}
+    let aw=0,av=0,review=0,rows='';
+    r.judgements.forEach(j=>{
+      aw+=j.marks_awarded;av+=j.marks_available;if(j.needs_review)review++;
+      csv+=[JSON.stringify(r.student_label),JSON.stringify(j.question),j.marks_awarded,j.marks_available,
+        j.confidence,j.needs_review,JSON.stringify(j.feedback||'')].join(',')+'\n';
+      rows+='<tr><td><b>'+esc(j.question)+'</b>'+(j.needs_review?' <span class="chip review" title="'+esc(j.review_reason||'')+'">review</span>':'')+'</td>'+
+        '<td class="num">'+j.marks_awarded+' / '+j.marks_available+'</td>'+
+        '<td class="num">'+Math.round(j.confidence*100)+'%</td>'+
+        '<td>'+esc(j.transcription||'')+'</td><td>'+esc(j.feedback||'')+'</td></tr>';
+    });
+    const pct=av?Math.round(100*aw/av):0;
+    cards+='<div class="card"><h3>'+esc(r.student_label)+' <span class="muted">('+esc(r._file)+')</span></h3>'+
+      '<p><span class="mark-total">'+aw+' / '+av+'</span> <span class="muted">('+pct+'%)</span>'+
+      (review?' · <span class="chip review">'+review+' item(s) for your review</span>':'')+'</p>'+
+      '<div class="mx"><table class="marks"><tr><th>Q</th><th>Marks</th><th>Conf.</th><th>Transcription</th><th>Feedback</th></tr>'+
+      rows+'</table></div></div>';
+  });
+  el.innerHTML='<h2 class="section">Marking results</h2>'+
+    '<div class="aim-actions">'+dlButton('⬇ Download marks (.csv)',csv,'marks.csv','text/csv')+'</div>'+cards+
+    '<p class="foot">AI-proposed marks — items flagged “review” need your judgement. You remain the marker of record.</p>';
+  el.classList.add('active');el.scrollIntoView({behavior:'smooth'});
+}
+(function(){const k=$('api-key');if(k&&getKey())k.value=getKey()})();
 """

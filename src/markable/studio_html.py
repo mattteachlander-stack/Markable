@@ -288,7 +288,25 @@ def _packs_payload() -> dict:
     return out
 
 
-def render_studio() -> str:
+def collect_reports(paths: list) -> dict:
+    """Find known report files under the given dirs/files → {filename: html}."""
+    from pathlib import Path
+
+    names = {target for _id, _label, target in _REPORTS}
+    found: dict[str, str] = {}
+    for p in paths:
+        p = Path(p)
+        if p.is_dir():
+            for name in names:
+                f = p / name
+                if f.exists():
+                    found[name] = f.read_text(encoding="utf-8")
+        elif p.is_file() and p.name in names:
+            found[p.name] = p.read_text(encoding="utf-8")
+    return found
+
+
+def render_studio(embedded: dict | None = None) -> str:
     import json
 
     ramps = {
@@ -357,10 +375,26 @@ def render_studio() -> str:
 </div>
 """
 
-    report_frames = "".join(
-        f'<div class="iframe-wrap" id="frame-{tid}"><iframe data-src="{target}" '
-        f'title="{label}"></iframe></div>'
-        for tid, label, target in _REPORTS
+    import html as _html
+
+    embedded = embedded or {}
+
+    def _frame(tid: str, label: str, target: str) -> str:
+        if target in embedded:
+            # Inline the whole report via srcdoc — its own CSS stays isolated in
+            # the iframe, so the hub becomes one portable file with no siblings.
+            doc = _html.escape(embedded[target], quote=True)
+            return (f'<div class="iframe-wrap" id="frame-{tid}">'
+                    f'<iframe data-file="{target}" srcdoc="{doc}" title="{label}"></iframe></div>')
+        return (f'<div class="iframe-wrap" id="frame-{tid}">'
+                f'<iframe data-file="{target}" data-src="{target}" title="{label}"></iframe></div>')
+
+    report_frames = "".join(_frame(tid, label, target) for tid, label, target in _REPORTS)
+    nav_foot = (
+        "Reports are embedded in this file — everything opens from the menu, nothing else needed."
+        if embedded else
+        "Report links open files saved beside this page. Generate them with the Markable CLI, "
+        "or use the upload boxes above."
     )
 
     return f"""<!DOCTYPE html>
@@ -378,8 +412,7 @@ def render_studio() -> str:
     <button class="nav-item" onclick="show('home');document.getElementById('drop-doc-input').click()">📝 Test → AI-marking prep</button>
     <h4>Reports</h4>
     {_report_nav()}
-    <div class="nav-foot">Report links open files saved beside this page.
-    Generate them with the Markable CLI, or use the upload boxes above.</div>
+    <div class="nav-foot">{nav_foot}</div>
   </nav>
   <main class="main">
     {landing}
@@ -411,13 +444,14 @@ function openReport(btn){
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
-  const file=btn.dataset.file, id=file.replace('.html','').replace('_','-');
-  // pick the matching frame by data-file
+  const file=btn.dataset.file;
+  // pick the matching frame by data-file; embedded frames carry srcdoc already,
+  // linked frames lazy-load their sibling file on first open.
   let shown=null;
   document.querySelectorAll('.iframe-wrap iframe').forEach(fr=>{
-    if(fr.dataset.src===file){const w=fr.closest('.iframe-wrap');w.classList.add('active');
-      if(!fr.src) fr.src=fr.dataset.src;
-      fr.onerror=()=>{}; shown=w;}
+    if(fr.dataset.file===file){const w=fr.closest('.iframe-wrap');w.classList.add('active');
+      if(!fr.getAttribute('srcdoc') && fr.dataset.src && !fr.src) fr.src=fr.dataset.src;
+      shown=w;}
   });
   document.querySelectorAll('.iframe-wrap').forEach(w=>{if(w!==shown)w.classList.remove('active')});
 }

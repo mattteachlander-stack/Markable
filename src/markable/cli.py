@@ -402,14 +402,24 @@ def powerbi(
 @app.command()
 def studio(
     out: Path = typer.Option(Path("markable.html"), "-o", "--out", help="Output hub file."),
+    embed: list[Path] = typer.Option(
+        None, "--embed",
+        help="Package dir(s) or report .html file(s) to bake into the hub — the result is "
+        "one portable file with every report navigable, nothing needed beside it.",
+    ),
 ) -> None:
     """Generate the Markable Studio hub — a single-file landing page + upload tools."""
-    from .studio_html import render_studio
+    from .studio_html import collect_reports, render_studio
 
-    out.write_text(render_studio(), encoding="utf-8")
+    embedded = collect_reports(embed) if embed else {}
+    out.write_text(render_studio(embedded=embedded), encoding="utf-8")
     console.print(f"[green]✓[/green] Markable Studio → [bold]{out}[/bold]")
-    console.print("  Open it in any browser. Keep generated report files (dashboard.html, …)")
-    console.print("  in the same folder and they'll open from the left-hand menu.")
+    if embedded:
+        console.print(f"  Embedded {len(embedded)} report(s): {', '.join(sorted(embedded))}")
+        console.print("  Fully self-contained — open in any browser, everything opens from the left menu.")
+    else:
+        console.print("  Open it in any browser. Keep generated report files (dashboard.html, …)")
+        console.print("  in the same folder and they'll open from the left-hand menu, or pass --embed to bake them in.")
 
 
 @app.command()

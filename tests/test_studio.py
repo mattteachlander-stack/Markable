@@ -40,3 +40,20 @@ def test_has_working_upload_boxes():
         assert fn in html, fn
     # ramps embedded for the in-browser renderer
     assert "const RAMPS=" in html
+
+
+def test_in_browser_dashboard_has_gradebook_parity():
+    """The uploader engine mirrors render_gradebook: term toggle, key highlights,
+    class-question analysis and a student spotlight — not just the basic tabs."""
+    html = render_studio()
+    for fn in ("highlightsCard", "classesTab", "renderClassQ", "studentTab",
+               "renderSpot", "qmetaFor", "reRenderDash"):
+        assert fn in html, fn
+    # VCE (SAC) / Years 7–10 (Assessment) level toggle wording
+    assert "VCE (SACs)" in html and "Years 7–10 (Assessments)" in html
+    assert "LAST_TERM" in html
+    # a dragged-in openpyxl workbook uses absolute rels targets (/xl/…) — the
+    # path resolver must not double the xl/ prefix
+    assert "tgt.startsWith('/')" in html
+    # the downloaded dashboard bakes its own runtime so its selects stay live
+    assert "f.toString()" in html

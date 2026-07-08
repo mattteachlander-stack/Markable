@@ -158,5 +158,5 @@ def run_mark(package_dir: Path, marker: Marker) -> MarkRun:
 
     review_items = [j for j in judgements if j.status is JudgementStatus.review]
     if review_items:
-        write_review_html(package_dir, review_items)
+        write_review_html(package_dir, review_items, test_id=assessment.test_id)
     return run

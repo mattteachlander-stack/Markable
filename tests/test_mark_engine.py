@@ -139,6 +139,25 @@ def test_outputs_written(marked_package):
     assert "S2" in overrides  # scaffolded slots for the review queue
 
 
+def test_review_html_is_interactive(marked_package):
+    """The review queue is a working UI: accept/set-mark controls per item,
+    progress tracking, and a client-side review_overrides.yaml download in the
+    exact {student: {question: marks}} shape `markable report` merges."""
+    pkg, assessment = marked_package
+    run_mark(pkg, FakeMarker({"S1": 0.95, "S2": 0.2}))
+    page = (pkg / "review.html").read_text(encoding="utf-8")
+    for el in ("const ITEMS=", "decide(", "downloadOverrides", "review_overrides.yaml",
+               "Accept", "Set mark", "localStorage", "pbar"):
+        assert el in page, el
+    # decisions persist per test — the storage key carries the test id
+    assert f"const TEST_ID={assessment.test_id!r}".replace("'", '"') in page
+    # the embedded items carry what the emitter needs
+    import json as _json
+    items = _json.loads(page.split("const ITEMS=", 1)[1].split(";\n", 1)[0])
+    assert all({"student", "question", "proposed", "available"} <= set(i) for i in items)
+    assert any(i["student"] == "S2" for i in items)
+
+
 def test_anthropic_marker_request_shape(tmp_path):
     """Offline: the request the Anthropic marker builds must match the current
     API surface (cached system, structured output, adaptive thinking)."""

@@ -116,7 +116,8 @@ src/markable/
     __init__.py        # run_mark(): per-question cohort batching + review rules
     anthropic_marker.py# Claude vision marker (`ai` extra) — cached key context,
                        # structured-output judgements, optional Batches API
-    review.py          # review.html + review_overrides.yaml scaffold
+    review.py          # interactive review.html (accept/set marks, progress,
+                       # emits review_overrides.yaml client-side) + yaml scaffold
   report.py            # results/totals/item_analysis CSVs, summary.md,
                        # review-override merge, star-schema export/
   curriculum.py        # pack import/list/load + offline tag proposals + run_tag

@@ -126,6 +126,78 @@ def _tool_cards() -> str:
     return "".join(out)
 
 
+def _guide_view() -> str:
+    """The 'How to use' page — lives inside the hub so the one file explains itself."""
+    return """
+<div class="view" id="view-guide">
+  <h1>How to use Markable</h1>
+  <p class="lead">Markable has two ways in. Most staff only need the first.</p>
+
+  <div class="guide-grid">
+    <div class="guide-card">
+      <div class="gc-icon">🖱️</div>
+      <h2>1. No install — just this page</h2>
+      <p>Everything here runs in your browser. Nothing is uploaded anywhere; your files are
+      read locally on your computer.</p>
+      <ol>
+        <li><b>See your class results.</b> Go to <i>Home &amp; tools</i> → the
+          <b>Results spreadsheet</b> box → <b>Choose spreadsheet</b> and pick your marks
+          workbook (.xlsx). An instant dashboard appears: cohort overview, a tab per SAC/test
+          with question analysis, and every student's trajectory.</li>
+        <li><b>Map to the study design.</b> On that dashboard, pick a study design from the
+          dropdown — a <i>Skills &amp; content</i> tab appears showing what each student is
+          performing to. Press <b>⬇ Download this dashboard</b> to save it as its own file.</li>
+        <li><b>Check a test before marking.</b> Use the <b>Test → AI-marking readiness</b>
+          box → drop a test (.docx, .md or .txt). Markable reports how ready it is for
+          reliable AI marking and what to fix.</li>
+        <li><b>Read the reports.</b> The left menu under <i>Reports</i> opens each finished
+          report (dashboards, curriculum report, test analysis) right here.</li>
+      </ol>
+      <p class="note">Your spreadsheet needs a row with <b>Surname</b> and one column per
+      question with a <b>/N</b> mark header (the usual SAC layout). Multiple SACs = multiple
+      sheets.</p>
+    </div>
+
+    <div class="guide-card">
+      <div class="gc-icon">⌨️</div>
+      <h2>2. Full pipeline (the tech person)</h2>
+      <p>For preparing papers, scanning and AI marking, Markable runs from a command line.
+      One-time setup: install <code>uv</code>, then <code>uv sync</code>.</p>
+      <ol>
+        <li><b>Prepare a paper:</b> <code>markable ingest draft.md</code> →
+          <code>markable build packages/my-test</code> (makes a scan-friendly paper + marking key).</li>
+        <li><b>After the test:</b> <code>markable scan packages/my-test scans/*.pdf</code> →
+          <code>markable mark packages/my-test</code> (AI marks per question; unsure items go
+          to a review queue).</li>
+        <li><b>Reports:</b> <code>markable report packages/my-test --dashboard</code>,
+          <code>… --curriculum vc2-science</code>, or <code>markable analyse draft.md --curriculum vc2-science</code>.</li>
+        <li><b>Power BI:</b> <code>markable powerbi results.xlsx -o powerbi_export</code> cleans
+          the spreadsheet into ready-to-load tables + a build guide.</li>
+        <li><b>Bundle it all:</b> <code>markable studio -o markable.html --embed packages/my-test</code>
+          builds this single hub with every report baked in.</li>
+      </ol>
+      <p class="note">Each report is one self-contained HTML file — safe to email, print, or
+      archive. Full commands are on each tool card on the Home page.</p>
+    </div>
+  </div>
+
+  <h2 class="section">What each report shows</h2>
+  <table class="guide-table">
+    <tr><th>Report</th><th>Answers</th><th>Made by</th></tr>
+    <tr><td><b>Assessment dashboard</b></td><td>How did the class go? Which questions were hard? Top vs bottom quartile per question.</td><td>Upload box, or <code>report --dashboard</code></td></tr>
+    <tr><td><b>SAC gradebook dashboard</b></td><td>Every student across every SAC, plus per-SAC question analysis and skills.</td><td>Upload box, or <code>gradebook</code></td></tr>
+    <tr><td><b>Curriculum report</b></td><td>Attainment per outcome (green→red), strand rollups, misconceptions, coverage gaps.</td><td><code>report --curriculum</code></td></tr>
+    <tr><td><b>Test analysis</b></td><td>Each item → curriculum code, cognitive level, and the specific skill it targets.</td><td><code>analyse</code></td></tr>
+  </table>
+
+  <div class="privacy-note">🔒 <b>Privacy:</b> browser uploads stay on your device. Student
+  names appear only in your own local views and are never sent anywhere or included in the
+  Power BI shared export. Codes in the sample curricula are representative — verify against the
+  official VCAA/ACARA source before formal reporting.</div>
+</div>
+"""
+
+
 def _report_nav() -> str:
     return "".join(
         f'<button class="nav-item" data-view="report" data-file="{target}" '
@@ -175,6 +247,24 @@ body{background:var(--page);color:var(--ink);
 .iframe-wrap.active{display:block}
 .iframe-wrap iframe{width:100%;height:100%;border:0;background:var(--surface)}
 .iframe-missing{display:none;padding:40px;color:var(--ink-2)}
+/* how-to-use guide */
+#view-guide h1{font-size:26px;margin:0 0 4px}
+#view-guide .lead{color:var(--ink-2);font-size:15px;margin:0 0 20px}
+.guide-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:8px}
+@media(max-width:820px){.guide-grid{grid-template-columns:1fr}}
+.guide-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px 22px}
+.guide-card .gc-icon{font-size:26px;margin-bottom:6px}
+.guide-card h2{font-size:16px;margin:0 0 8px}
+.guide-card ol{margin:10px 0 8px;padding-left:20px}
+.guide-card li{margin-bottom:9px;color:var(--ink);font-size:14px}
+.guide-card .note{color:var(--muted);font-size:12.5px;margin:8px 0 0;border-top:1px solid var(--grid);padding-top:8px}
+.guide-table{border-collapse:collapse;width:100%;margin-bottom:18px;background:var(--surface);
+  border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.guide-table th{text-align:left;font-size:12.5px;color:var(--ink-2);background:var(--accent-wash);padding:9px 14px}
+.guide-table td{padding:10px 14px;border-top:1px solid var(--grid);font-size:13.5px;vertical-align:top}
+.guide-table td:first-child{white-space:nowrap}
+.privacy-note{background:var(--accent-wash);border-left:3px solid var(--accent);border-radius:0 10px 10px 0;
+  padding:12px 16px;font-size:13.5px;color:var(--ink-2)}
 /* hero */
 .hero{display:grid;grid-template-columns:1fr 480px;gap:20px;align-items:center;
   background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px 30px;margin-bottom:22px}
@@ -407,6 +497,7 @@ def render_studio(embedded: dict | None = None) -> str:
   <nav class="nav">
     <div class="brand"><span class="dot">✓</span> Markable</div>
     <button class="nav-item active" data-view="home" onclick="show('home',this)">🏠 Home &amp; tools</button>
+    <button class="nav-item" data-view="guide" onclick="show('guide',this)">📘 How to use</button>
     <h4>Upload</h4>
     <button class="nav-item" onclick="show('home');document.getElementById('drop-xlsx-input').click()">📈 Results → dashboard</button>
     <button class="nav-item" onclick="show('home');document.getElementById('drop-doc-input').click()">📝 Test → AI-marking prep</button>
@@ -416,6 +507,7 @@ def render_studio(embedded: dict | None = None) -> str:
   </nav>
   <main class="main">
     {landing}
+    {_guide_view()}
     {report_frames}
     <div class="iframe-wrap" id="frame-missing"><div class="iframe-missing" style="display:block">
       <h2>Not found beside this page</h2>

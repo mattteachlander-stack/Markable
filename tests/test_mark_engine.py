@@ -89,12 +89,18 @@ def marked_package(tmp_path, request):
 def test_marks_per_question_cohort_batches(marked_package):
     pkg, assessment = marked_package
     marker = FakeMarker({"S1": 0.95, "S2": 0.95})
-    run_mark(pkg, marker)
+    run = run_mark(pkg, marker)
     # One call per question; both students batched together (except blanks).
     by_q = dict(marker.calls)
     assert set(by_q) == {q.id for q in assessment.questions}
-    assert by_q["Q1"] == ["S1", "S2"]
-    assert by_q["Q2"] == ["S1"]  # S2's Q2 was blank — never sent to the marker
+    assert len(by_q["Q1"]) == 2
+    assert len(by_q["Q2"]) == 1  # S2's Q2 was blank — never sent to the marker
+    # The marker never sees real student IDs — only local random aliases…
+    seen = {sid for sids in by_q.values() for sid in sids}
+    assert not seen & {"S1", "S2"}
+    assert all(sid.startswith("anon-") for sid in seen)
+    # …but the results are re-identified locally before anything is written.
+    assert {j.student for j in run.judgements} == {"S1", "S2"}
 
 
 def test_blank_goes_to_review_not_marker(marked_package):
@@ -108,9 +114,15 @@ def test_blank_goes_to_review_not_marker(marked_package):
 
 def test_confidence_threshold_routes_to_review(marked_package):
     pkg, _ = marked_package
+    # The marker only ever sees aliases, so canned confidences must be keyed
+    # by alias too — pre-minting here reuses the same package key file that
+    # run_mark's Pseudonymiser loads.
+    from markable.anon import Pseudonymiser
+
+    anon = Pseudonymiser(pkg)
     # S2 low confidence everywhere; diagram/extended threshold is 0.9 so S1's
     # 0.88 passes short_answer (0.85) but fails extended Q4 and diagram Q5.
-    run = run_mark(pkg, FakeMarker({"S1": 0.88, "S2": 0.5}))
+    run = run_mark(pkg, FakeMarker({anon.alias("S1"): 0.88, anon.alias("S2"): 0.5}))
     j = {(x.student, x.question): x for x in run.judgements}
     assert j[("S1", "Q2")].status is JudgementStatus.marked
     assert j[("S1", "Q4")].status is JudgementStatus.review

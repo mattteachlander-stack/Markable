@@ -12,17 +12,23 @@ the marker, so they hold no matter what marks:
 - confidence below the question's `review_threshold` → review queue
 - blank responses (flagged by `scan`) → review queue, never judged
 - marker-flagged ambiguity (double bubble, illegible) → review queue
+
+Pseudonymisation also lives *here* (anon.py), not in markers: items are
+aliased before any marker sees them and judgements are re-identified locally
+the moment they return, so no marker implementation can transmit a real
+student identifier even by accident (e.g. in a batch custom_id).
 """
 
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Optional, Protocol
 
 import yaml
 
+from ..anon import Pseudonymiser
 from ..models import (
     Judgement,
     JudgementStatus,
@@ -119,6 +125,10 @@ def run_mark(package_dir: Path, marker: Marker) -> MarkRun:
         for s in report.students:
             blanks[s.student_id] = set(s.blank_questions)
 
+    # Markers only ever see random aliases — the alias→student key stays in
+    # the package folder and re-identification happens right here, locally.
+    anon = Pseudonymiser(package_dir)
+
     judgements: list[Judgement] = []
     for qid, question in questions.items():
         entry = entries.get(qid)
@@ -130,7 +140,9 @@ def run_mark(package_dir: Path, marker: Marker) -> MarkRun:
         judgements.extend(_blank_judgement(i, qid, entry.marks) for i in items if i.blank)
 
         if to_mark:
-            for j in marker.mark_question(question, entry, to_mark):
+            masked = [replace(i, student_id=anon.alias(i.student_id)) for i in to_mark]
+            for j in marker.mark_question(question, entry, masked):
+                j.student = anon.real(j.student)
                 j.marks_available = float(entry.marks)
                 judgements.append(_apply_review_rules(j, entry))
 

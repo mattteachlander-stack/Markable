@@ -225,6 +225,10 @@ def mark(
         f"[green]✓[/green] {marked}/{len(run.judgements)} responses marked · "
         f"{review} in review queue" + (f" · [red]{errors} errors[/red]" if errors else "")
     )
+    console.print(
+        "  [dim]Privacy: only random aliases were sent to the marker — the "
+        f"re-identification key stays local in {package / 'anon_key.yaml'}[/dim]"
+    )
     if review:
         console.print(f"  Review queue → [bold]{package / 'review.html'}[/bold], record final marks in review_overrides.yaml")
 

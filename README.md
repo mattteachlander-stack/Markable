@@ -88,3 +88,10 @@ answer-zone coordinates match the page by construction.
 Scripts are keyed by **student ID, never name**. Names live only in a local
 `class_list.csv` you control and are joined at report time. No student data is
 stored anywhere but the local package folder. See `PROJECT_BRIEF.md` §7.
+
+**Nothing identifiable is transmitted to the AI marker.** Before `markable
+mark` sends anything to the cloud, every student ID is swapped for a random
+alias (`anon-3f9c2b1a`); the marker sees only the answer-zone image and that
+alias. Results are re-identified on your machine using the key in the
+package's `anon_key.yaml` (owner-only permissions, never exported) — delete
+that file and transmitted data can never be linked back to a student.

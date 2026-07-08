@@ -86,6 +86,8 @@ Package** — there is no daemon and no shared state beyond the package folder.
 src/markable/
   models.py            # AUTHORITATIVE Pydantic schemas for every artifact
   ids.py               # question ids + version_hash
+  anon.py              # local pseudonymisation: random alias ↔ student-ID key
+                       # (anon_key.yaml in the package, 0600, never exported)
   qr.py                # per-page QR payload {test_id, version_hash, page_number}
   ingest.py            # markdown draft → assessment.yaml (offline, deterministic)
   ingest_ai.py         # .docx/.pdf via Claude — SCAFFOLD ONLY (Phase 1b)
@@ -192,6 +194,13 @@ preventing marking against a revised key (brief §7).
 - **Privacy:** scripts are keyed by **student ID, never name**. `DimStudent.name`
   is local-only and never exported; the name join happens at report time from a
   local `class_list.csv`. Shared/BI exports contain no names, scans, or crops.
+- **Pseudonymised transmission (`anon.py`):** nothing identifiable ever leaves
+  the machine. `run_mark` swaps every student ID for a random alias *before*
+  any marker sees an item and re-identifies the returned judgements locally,
+  so even batch `custom_id`s carry only aliases. The alias↔ID key lives in the
+  package (`anon_key.yaml`, chmod 600), is never exported, and deleting it
+  permanently unlinks transmitted data. Aliases are `secrets.token_hex`, not
+  hashes — a hashed school ID could be brute-forced from the ID space.
 - **Scope discipline for v1:** no web app, no accounts, no server, no LMS, no
   online testing. Paper in → marks + analysis out.
 

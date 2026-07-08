@@ -256,16 +256,52 @@ table.plain td{border-bottom:1px solid var(--grid);padding:6px 10px 6px 0}
 """
 
 
+def _packs_payload() -> dict:
+    """Compact {id: {name, areas:[{strand, terms}]}} for the in-browser skills
+    auto-mapper, built from the science study-design fixtures so it stays in
+    step with the CLI packs."""
+    from pathlib import Path
+
+    import yaml
+
+    from .curriculum import _terms
+
+    root = Path(__file__).resolve().parents[2] / "fixtures" / "curricula"
+    out: dict = {}
+    for pid in ("vce-biology-u34", "vc2-science"):
+        pack_file = root / pid / "pack.yaml"
+        if not pack_file.exists():
+            continue
+        data = yaml.safe_load(pack_file.read_text(encoding="utf-8"))
+        dim_names = {d["id"]: d.get("name", d["id"]) for d in data.get("dimensions", [])}
+        outcomes = []
+        for o in data["outcomes"]:
+            dim = dim_names.get(o["dimension"], o["dimension"])
+            terms = sorted(_terms(" ".join(
+                [o.get("topic", ""), o["strand"], *(o.get("elaborations", []))]
+            )))
+            outcomes.append({
+                "area": f"{dim} — {o['strand']}",
+                "terms": terms,
+            })
+        out[pid] = {"name": f"{data['curriculum']} v{data['version']}", "outcomes": outcomes}
+    return out
+
+
 def render_studio() -> str:
+    import json
+
     ramps = {
         "greenLight": _GREEN_LIGHT,
         "greenDark": _GREEN_DARK,
         "heatLight": [b[0] for b in _HEAT],
         "heatDark": [b[2] for b in _HEAT],
     }
-    import json
-
-    ramp_js = "const RAMPS=" + json.dumps(ramps) + ";"
+    ramp_js = (
+        "const RAMPS=" + json.dumps(ramps) + ";\n"
+        + "const PACKS=" + json.dumps(_packs_payload()) + ";\n"
+        + "const STUDIO_CSS=" + json.dumps(_CSS) + ";"
+    )
 
     landing = f"""
 <div class="view active" id="view-home">
@@ -566,14 +602,83 @@ function overviewTab(sacs){
     '<div class="card"><h3>Every student across every assessment</h3><div class="mx"><table>'+head+rows+'</table></div>'+
     '<p class="foot">Coloured by percentage · red = at risk · green = secure · names shown locally only.</p></div></div>';
 }
-function renderDashboard(sacs){
+/* ---- study-design auto-mapping (mirrors studydesign.py, keyword overlap) ---- */
+const STOP=new Set(('the a an and or of to in on for with your is are how what which that this its it be by '+
+  'using use used their them when each one two give show state describe explain identify draw label should '+
+  'answer question marks mark simple').split(' '));
+function terms(s){const out=new Set();(String(s).toLowerCase().match(/[a-z]{3,}/g)||[]).forEach(w=>{
+  if(STOP.has(w))return;out.add(w.endsWith('s')?w.slice(0,-1):w)});return out}
+function autoArea(label,pack){const q=terms(label);let best=null,bestN=0;
+  pack.outcomes.forEach(o=>{let n=0;o.terms.forEach(t=>{if(q.has(t.endsWith('s')?t.slice(0,-1):t))n++});
+    if(n>bestN){bestN=n;best=o.area}});return bestN>0?best:null}
+function skillsTab(sacs,packId){
+  const pack=PACKS[packId];
+  let blocks='';
+  sacs.forEach(sac=>{
+    const qArea={},areas=new Set();
+    sac.questions.forEach(q=>{const a=autoArea(q.id,pack);if(a){qArea[q.id]=a;areas.add(a)}});
+    if(!areas.size)return;
+    const areaList=[...areas];
+    const per={},coh={};
+    sac.students.forEach(st=>{areaList.forEach(a=>{per[st.name+'|'+a]=[0,0]});});
+    areaList.forEach(a=>coh[a]=[0,0]);
+    sac.students.forEach(st=>{sac.questions.forEach(q=>{const a=qArea[q.id];if(!a)return;
+      const aw=st.marks[q.id]||0;per[st.name+'|'+a][0]+=aw;per[st.name+'|'+a][1]+=q.max;
+      coh[a][0]+=aw;coh[a][1]+=q.max})});
+    const shortA=a=>a.includes('—')?a.split('—')[1].trim():a;
+    const head='<tr><th class="rowh">Student</th>'+areaList.map(a=>'<th>'+esc(shortA(a))+'</th>').join('')+'</tr>';
+    const pc=(p)=>p[1]?Math.round(100*p[0]/p[1]):null;
+    const cell=v=>v===null?'<td class="na">—</td>':'<td class="h'+heatBin(v)+'">'+v+'</td>';
+    const cohRow='<tr style="font-weight:600"><th class="rowh">Cohort</th>'+areaList.map(a=>cell(pc(coh[a]))).join('')+'</tr>';
+    const rows=sac.students.map(st=>'<tr><th class="rowh">'+esc(st.name)+'</th>'+
+      areaList.map(a=>cell(pc(per[st.name+'|'+a]))).join('')+'</tr>').join('');
+    const mapped=Object.keys(qArea).length,tot=sac.questions.length;
+    blocks+='<div class="card"><h3>'+esc(sac.number)+' — '+esc(sac.topic)+': attainment by study-design area</h3>'+
+      '<div class="mx"><table>'+head+cohRow+rows+'</table></div>'+
+      '<p class="foot">'+mapped+'/'+tot+' items auto-mapped from their labels. Content items that are just '+
+      'numbered (1, 2, 3a) need a teacher map via the CLI — criterion-named items (prac skills) map here directly.</p></div>';
+  });
+  if(!blocks) blocks='<div class="card"><p>No items could be auto-mapped from their labels for '+
+    esc(pack.name)+'. Named criteria (e.g. a prac SAC\'s skill columns) map automatically; '+
+    'numbered content questions need a teacher map via <code>markable gradebook --map</code>.</p></div>';
+  return '<div class="subtab" id="st-skills"><p class="foot" style="margin-top:0">Mapped against '+esc(pack.name)+
+    ' — representative codes, confirm against the official study design.</p>'+blocks+'</div>';
+}
+
+let LAST_SACS=null, LAST_TITLE='';
+function packOptions(sel){return '<option value="">Study design: none</option>'+
+  Object.keys(PACKS).map(id=>'<option value="'+id+'"'+(id===sel?' selected':'')+'>'+esc(PACKS[id].name)+'</option>').join('')}
+function renderDashboard(sacs,packId){
+  const toolbar='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">'+
+    '<select onchange="reRender(this.value)" style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--ink);font:inherit">'+
+    packOptions(packId)+'</select>'+
+    '<button class="btn ghost" onclick="downloadDash()">⬇ Download this dashboard</button></div>';
   const tabs=['<button class="active" onclick="pickSub(this,\'st-ov\')">Overview</button>']
     .concat(sacs.map((s,i)=>'<button onclick="pickSub(this,\'st'+i+'\')">'+esc(s.number)+'</button>'));
-  const bodies=overviewTab(sacs)+sacs.map((s,i)=>sacTab(s,i)).join('');
-  return rampCss()+'<div class="subtabs">'+tabs.join('')+'</div>'+bodies;
+  if(packId) tabs.push('<button onclick="pickSub(this,\'st-skills\')">Skills &amp; content</button>');
+  let bodies=overviewTab(sacs)+sacs.map((s,i)=>sacTab(s,i)).join('');
+  if(packId) bodies+=skillsTab(sacs,packId);
+  return rampCss()+toolbar+'<div class="subtabs">'+tabs.join('')+'</div>'+bodies;
+}
+function reRender(packId){
+  if(!LAST_SACS)return;
+  $('xlsx-result').innerHTML='<h2 class="section" id="dash-title">Dashboard — '+esc(LAST_TITLE)+'</h2>'+renderDashboard(LAST_SACS,packId);
+}
+function downloadDash(){
+  const content=$('xlsx-result').innerHTML;
+  const doc='<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'+
+    '<meta name="viewport" content="width=device-width,initial-scale=1">'+
+    '<title>'+esc(LAST_TITLE)+' — Markable dashboard</title><style>'+STUDIO_CSS+
+    'body{padding:24px 30px}</style></head><body>'+content+
+    '<script>function pickSub(b,id){const r=document;r.querySelectorAll(".subtabs button").forEach(x=>x.classList.toggle("active",x===b));r.querySelectorAll(".subtab").forEach(t=>t.classList.toggle("active",t.id===id))}<\/script>'+
+    '</body></html>';
+  const blob=new Blob([doc],{type:'text/html'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=(LAST_TITLE.replace(/\.[^.]+$/,'')||'markable')+'-dashboard.html';a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
 }
 function pickSub(btn,id){
-  const root=btn.closest('.result');
+  const root=btn.closest('.result')||document;
   root.querySelectorAll('.subtabs button').forEach(b=>b.classList.toggle('active',b===btn));
   root.querySelectorAll('.subtab').forEach(t=>t.classList.toggle('active',t.id===id));
 }
@@ -643,7 +748,8 @@ wireDrop('drop-xlsx','drop-xlsx-input',async file=>{
     const sheets=await parseXlsx(await file.arrayBuffer());
     const sacs=sheets.map(detectSac).filter(Boolean);
     if(!sacs.length)throw new Error('No results grid found. Expected a sheet with a "Surname" header row and "/N" mark columns.');
-    $('xlsx-result').innerHTML='<h2 class="section">Dashboard — '+esc(file.name)+'</h2>'+renderDashboard(sacs);
+    LAST_SACS=sacs; LAST_TITLE=file.name;
+    $('xlsx-result').innerHTML='<h2 class="section" id="dash-title">Dashboard — '+esc(file.name)+'</h2>'+renderDashboard(sacs,'');
     $('xlsx-result').classList.add('active');
     st.textContent='✓ '+sacs.length+' assessment(s), '+sacs[0].students.length+' students.';
     $('xlsx-result').scrollIntoView({behavior:'smooth'});

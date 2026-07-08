@@ -37,6 +37,7 @@ class GradeStudent:
     surname: str
     first_name: str
     vcaa: str = ""
+    class_group: str = ""
     marks: dict[str, float] = field(default_factory=dict)  # question id -> awarded
 
     @property
@@ -61,6 +62,7 @@ class SAC:
 class Gradebook:
     source: str
     sacs: list[SAC]
+    mock_classes: bool = False  # True when class groups were assigned, not parsed
 
 
 _MAXMARK = re.compile(r"^/\s*(\d+(?:\.\d+)?)$")
@@ -104,10 +106,11 @@ def _parse_sheet(ws) -> SAC | None:
     cols = {}
     for c in range(1, ws.max_column + 1):
         key = str(ws.cell(h, c).value or "").strip().lower()
-        if key in {"surname", "first name", "id", "vcaa number"}:
+        if key in {"surname", "first name", "id", "vcaa number", "class", "form", "class group"}:
             cols[key] = c
     if "surname" not in cols:
         return None
+    class_col = cols.get("class") or cols.get("class group") or cols.get("form")
 
     # Question columns: max-mark cells on the header row, label one row above.
     questions: list[GradeQuestion] = []
@@ -137,6 +140,7 @@ def _parse_sheet(ws) -> SAC | None:
             surname=str(surname).strip(),
             first_name=str(first or "").strip(),
             vcaa=str(ws.cell(r, cols["vcaa number"]).value or "").strip() if "vcaa number" in cols else "",
+            class_group=str(ws.cell(r, class_col).value or "").strip() if class_col else "",
         )
         for c, label in q_cols:
             v = _f(ws.cell(r, c).value)
@@ -177,3 +181,27 @@ def read_gradebook(path: Path) -> Gradebook:
             "header row and '/N' max-mark columns"
         )
     return Gradebook(source=path.name, sacs=sacs)
+
+
+def assign_mock_classes(gb: Gradebook, groups: list[str]) -> None:
+    """Deterministically assign each student to one of `groups` when the workbook
+    carries no class column — for demoing class-by-class views. Stable across
+    SACs (keyed on the student's name)."""
+    import hashlib
+
+    gb.mock_classes = True
+    for sac in gb.sacs:
+        for st in sac.students:
+            if st.class_group:
+                continue
+            h = int(hashlib.sha1(st.name.encode("utf-8")).hexdigest(), 16)
+            st.class_group = groups[h % len(groups)]
+
+
+def classes(gb: Gradebook) -> list[str]:
+    seen = []
+    for sac in gb.sacs:
+        for st in sac.students:
+            if st.class_group and st.class_group not in seen:
+                seen.append(st.class_group)
+    return sorted(seen)

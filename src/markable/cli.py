@@ -431,11 +431,14 @@ def gradebook(
     map_file: Optional[Path] = typer.Option(
         None, "--map", help="YAML {sac_number: {question_id: [codes]}} — teacher-confirmed mappings."
     ),
+    class_names: Optional[str] = typer.Option(
+        None, "--classes", help="Comma-separated class names to assign (demo) when the workbook has none, e.g. '12 BIO A,12 BIO B'."
+    ),
     out: Path = typer.Option(Path("sac_dashboard.html"), "-o", "--out", help="Output HTML file."),
 ) -> None:
     """Build a multi-SAC dashboard (+ skills mapping) from a marks spreadsheet."""
     try:
-        from .gradebook import read_gradebook
+        from .gradebook import assign_mock_classes, classes as _classes, read_gradebook
     except ImportError:
         console.print("[red]Gradebook reading needs the 'xlsx' extra: uv sync --extra xlsx[/red]")
         raise typer.Exit(code=1)
@@ -445,6 +448,9 @@ def gradebook(
     except (ValueError, RuntimeError) as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1)
+
+    if class_names and not _classes(gb):
+        assign_mock_classes(gb, [c.strip() for c in class_names.split(",") if c.strip()])
 
     skills = None
     pack_name = ""

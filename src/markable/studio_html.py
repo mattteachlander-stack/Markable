@@ -33,10 +33,10 @@ _HERO_SVG = """
 <svg viewBox="0 0 480 220" role="img" aria-label="Markable" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="g" x1="0" y1="1" x2="0" y2="0">
-      <stop offset="0" stop-color="#007d34"/><stop offset="1" stop-color="#12d95f"/>
+      <stop offset="0" stop-color="#123a7a"/><stop offset="1" stop-color="#2f80ed"/>
     </linearGradient>
     <linearGradient id="gd" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#12d95f"/><stop offset="1" stop-color="#00a344"/>
+      <stop offset="0" stop-color="#4b93ff"/><stop offset="1" stop-color="#1e63d0"/>
     </linearGradient>
   </defs>
   <!-- data bars -->
@@ -208,19 +208,19 @@ def _report_nav() -> str:
 
 _CSS = """
 :root{
-  --surface:#fcfcfb; --page:#f4f6f4; --ink:#0b0b0b; --ink-2:#52514e; --muted:#898781;
-  --grid:#e1e0d9; --baseline:#c3c2b7; --border:rgba(11,11,11,.10);
-  --accent:#00a344; --accent-2:#12d95f; --accent-wash:rgba(0,163,68,.09);
-  --nav:#0c1a12; --nav-ink:#e7f4ec; --nav-ink-2:#8fb7a1; --empty:#f0efec;
-  --tip-bg:#0b0b0b; --tip-ink:#fff;
+  --surface:#ffffff; --page:#f4f6fb; --ink:#0f1729; --ink-2:#48566f; --muted:#8a95a8;
+  --grid:#e6eaf2; --baseline:#c7cede; --border:rgba(15,23,41,.10);
+  --accent:#1e63d0; --accent-2:#2f80ed; --accent-wash:rgba(30,99,208,.08);
+  --nav:#0d1830; --nav-ink:#e9f0fb; --nav-ink-2:#9fb0cc; --empty:#eef1f7;
+  --tip-bg:#0f1729; --tip-ink:#fff;
 }
 @media (prefers-color-scheme: dark){
   :root{
-    --surface:#1a1a19; --page:#0d0d0d; --ink:#fff; --ink-2:#c3c2b7; --muted:#898781;
-    --grid:#2c2c2a; --baseline:#383835; --border:rgba(255,255,255,.10);
-    --accent:#12d95f; --accent-2:#5ceb8f; --accent-wash:rgba(18,217,95,.10);
-    --nav:#0a140e; --nav-ink:#e7f4ec; --nav-ink-2:#8fb7a1; --empty:#383835;
-    --tip-bg:#f4f4f2; --tip-ink:#0b0b0b;
+    --surface:#141a26; --page:#0b0f17; --ink:#eaf0fb; --ink-2:#a9b6cc; --muted:#6f7c93;
+    --grid:#232c3d; --baseline:#33405a; --border:rgba(255,255,255,.10);
+    --accent:#4b93ff; --accent-2:#6aa8ff; --accent-wash:rgba(75,147,255,.12);
+    --nav:#0a1220; --nav-ink:#e9f0fb; --nav-ink-2:#9fb0cc; --empty:#232c3d;
+    --tip-bg:#eaf0fb; --tip-ink:#0f1729;
   }
 }
 *{box-sizing:border-box}
@@ -276,6 +276,21 @@ body{background:var(--page);color:var(--ink);
 @media(max-width:920px){.hero{grid-template-columns:1fr}.app{grid-template-columns:1fr}
   .nav{position:static;height:auto}}
 /* tool cards */
+.products{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:26px}
+@media(max-width:820px){.products{grid-template-columns:1fr}}
+.product{position:relative;border-radius:16px;padding:22px 24px;color:#fff;overflow:hidden;
+  border:1px solid var(--border)}
+.product.vce{background:linear-gradient(135deg,#12336e,#1e63d0)}
+.product.js{background:linear-gradient(135deg,#0e3a5f,#2f80ed)}
+.product .band{display:inline-block;background:rgba(255,255,255,.18);border-radius:99px;
+  padding:2px 11px;font-size:12px;font-weight:600;margin-bottom:10px}
+.product h2{color:#fff;font-size:20px;margin:0 0 6px}
+.product p{color:rgba(255,255,255,.9);margin:0 0 14px;font-size:14px;max-width:44ch}
+.product .pbtns{display:flex;gap:8px;flex-wrap:wrap}
+.product .pbtn{appearance:none;border:0;border-radius:9px;padding:9px 14px;font:inherit;font-size:13.5px;
+  font-weight:600;cursor:pointer;background:#fff;color:#123a7a}
+.product .pbtn.ghost{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.35)}
+.product .curric{margin-top:12px;font-size:12px;color:rgba(255,255,255,.75)}
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
 .tool{display:flex;gap:14px;background:var(--surface);border:1px solid var(--border);
   border-radius:12px;padding:16px 18px}
@@ -358,7 +373,7 @@ def _packs_payload() -> dict:
 
     root = Path(__file__).resolve().parents[2] / "fixtures" / "curricula"
     out: dict = {}
-    for pid in ("vce-biology-u34", "vc2-science"):
+    for pid in ("vce-biology-u34", "ac9-science", "vc2-science"):
         pack_file = root / pid / "pack.yaml"
         if not pack_file.exists():
             continue
@@ -426,6 +441,33 @@ def render_studio(embedded: dict | None = None) -> str:
       </p>
     </div>
     {_HERO_SVG}
+  </div>
+
+  <h2 class="section">Choose your level</h2>
+  <div class="products">
+    <div class="product vce">
+      <span class="band">Senior · VCE Units 1–4</span>
+      <h2>VCE</h2>
+      <p>SAC results into a landscape dashboard: cohort, per-SAC question analysis,
+      class-by-class comparison, and an individual student spotlight — mapped to the
+      VCE study design.</p>
+      <div class="pbtns">
+        <button class="pbtn" onclick="document.getElementById('drop-xlsx-input').click()">Upload SAC results</button>
+        <button class="pbtn ghost" onclick="show('guide')">How it works</button>
+      </div>
+      <div class="curric">Curriculum: VCE study designs (e.g. Biology Units 3 &amp; 4)</div>
+    </div>
+    <div class="product js">
+      <span class="band">Junior · Years 7–10</span>
+      <h2>Years 7–10</h2>
+      <p>Test results into the same dashboard with per-student and class breakdowns,
+      plus test analysis and AI-marking prep — mapped to the Australian Curriculum (v9).</p>
+      <div class="pbtns">
+        <button class="pbtn" onclick="document.getElementById('drop-xlsx-input').click()">Upload class results</button>
+        <button class="pbtn ghost" onclick="document.getElementById('drop-doc-input').click()">Analyse a test</button>
+      </div>
+      <div class="curric">Curriculum: Australian Curriculum v9 Science (AC9 codes)</div>
+    </div>
   </div>
 
   <h2 class="section">What Markable does</h2>

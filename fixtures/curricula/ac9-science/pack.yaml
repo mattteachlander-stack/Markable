@@ -1,0 +1,184 @@
+# Australian Curriculum v9.0 — Science, Years 7-10 — REPRESENTATIVE SUBSET.
+#
+# ⚠ Codes follow the official ACARA AC9 Science identifier scheme (e.g. AC9S9U04
+# = AC9 · Science · Year 9 · Understanding · content 04) and the descriptions are
+# summarised from the AC9 structure. This is a proof-of-concept pack: verify each
+# code and elaboration against the official machine-readable Australian Curriculum
+# (australiancurriculum.edu.au) before formal reporting. This is the default pack
+# for Years 7-10 (the Victorian Curriculum 2.0 pack remains available separately).
+curriculum: Australian Curriculum v9 Science (representative subset)
+version: "9.0-poc"
+levels: ["7", "8", "9", "10"]
+dimensions:
+  - id: SU
+    name: Science Understanding
+  - id: SHE
+    name: Science as a Human Endeavour
+  - id: SI
+    name: Science Inquiry
+outcomes:
+  # ---- Year 7 · Science Understanding --------------------------------------
+  - code: AC9S7U01
+    level: "7"
+    dimension: SU
+    strand: Biological sciences
+    topic: Classification & cells
+    description: >-
+      describe the role of cells as the basic units of living things and classify
+      organisms based on observable similarities and differences
+    elaborations: [cell, organism, classify, kingdom, structure]
+  - code: AC9S7U05
+    level: "7"
+    dimension: SU
+    strand: Chemical sciences
+    topic: Mixtures & separation
+    description: >-
+      investigate the classification of matter as pure substances or mixtures and
+      the separation of mixtures using physical methods
+    elaborations: [mixture, substance, separation, filtration, solution]
+  # ---- Year 8 · Science Understanding --------------------------------------
+  - code: AC9S8U03
+    level: "8"
+    dimension: SU
+    strand: Chemical sciences
+    topic: Particle model
+    description: >-
+      use the particle model to explain the properties of solids, liquids and
+      gases and changes of state in terms of energy
+    elaborations: [particle, state, solid, liquid, gas, energy]
+  - code: AC9S8U05
+    level: "8"
+    dimension: SU
+    strand: Physical sciences
+    topic: Energy forms & transfer
+    description: >-
+      describe different forms of energy and analyse how energy is transferred and
+      transformed in systems
+    elaborations: [energy, transfer, transformation, kinetic, potential]
+  # ---- Year 9 · Science Understanding --------------------------------------
+  - code: AC9S9U03
+    level: "9"
+    dimension: SU
+    strand: Chemical sciences
+    topic: Atomic structure
+    description: >-
+      explain the structure of atoms in terms of protons, neutrons and electrons,
+      and relate this to the properties and arrangement of elements
+    elaborations: [atom, proton, neutron, electron, charge, element, particle]
+  - code: AC9S9U04
+    level: "9"
+    dimension: SU
+    strand: Chemical sciences
+    topic: Chemical reactions
+    description: >-
+      explain how chemical reactions involve the rearrangement of atoms to form
+      new substances, and that mass is conserved
+    elaborations: [reaction, reactant, product, conservation, mass, mole, equation]
+  - code: AC9S9U05
+    level: "9"
+    dimension: SU
+    strand: Chemical sciences
+    topic: Reaction rates & energy
+    description: >-
+      investigate the factors that affect the rate of chemical reactions and
+      classify reactions as exothermic or endothermic by energy change
+    elaborations: [rate, temperature, collision, catalyst, exothermic, endothermic, energy]
+  - code: AC9S9U06
+    level: "9"
+    dimension: SU
+    strand: Physical sciences
+    topic: Energy transfer & conservation
+    description: >-
+      analyse how energy is transferred and transformed in systems and apply the
+      law of conservation of energy
+    elaborations: [energy, transfer, conduction, convection, radiation, conservation]
+  # ---- Year 10 · Science Understanding -------------------------------------
+  - code: AC9S10U02
+    level: "10"
+    dimension: SU
+    strand: Biological sciences
+    topic: Genetics & inheritance
+    description: >-
+      explain the role of DNA and genes in the inheritance of characteristics and
+      in the transmission of heritable traits
+    elaborations: [dna, gene, inheritance, allele, trait, chromosome]
+  - code: AC9S10U03
+    level: "10"
+    dimension: SU
+    strand: Biological sciences
+    topic: Evolution
+    description: >-
+      explain how natural selection and other mechanisms account for the diversity
+      of living things and are supported by evidence
+    elaborations: [evolution, natural selection, adaptation, species, evidence]
+  - code: AC9S10U07
+    level: "10"
+    dimension: SU
+    strand: Physical sciences
+    topic: Motion & forces
+    description: >-
+      analyse the motion of objects using relationships between force, mass,
+      acceleration, velocity and energy
+    elaborations: [motion, force, velocity, acceleration, newton, momentum]
+  # ---- Science as a Human Endeavour ----------------------------------------
+  - code: AC9S9H01
+    level: "9"
+    dimension: SHE
+    strand: Use and influence of science
+    topic: Science in society
+    description: >-
+      examine how scientific knowledge is used to inform decisions and how it is
+      influenced by social, economic and ethical considerations
+    elaborations: [society, ethics, application, technology, decision]
+  # ---- Science Inquiry ------------------------------------------------------
+  - code: AC9S9I01
+    level: "9"
+    dimension: SI
+    strand: Questioning and predicting
+    topic: Questions & hypotheses
+    description: >-
+      develop investigable questions, reasoned predictions and hypotheses to
+      test relationships and models
+    elaborations: [question, hypothesis, prediction, variable, aim]
+  - code: AC9S9I02
+    level: "9"
+    dimension: SI
+    strand: Planning and conducting
+    topic: Fair testing & safety
+    description: >-
+      plan and conduct safe, valid investigations, identifying independent,
+      dependent and controlled variables
+    elaborations: [plan, method, variable, controlled, fair test, safety, risk]
+  - code: AC9S9I04
+    level: "9"
+    dimension: SI
+    strand: Processing, modelling and analysing
+    topic: Data analysis
+    description: >-
+      select and construct representations of data to identify and analyse
+      patterns, trends and relationships
+    elaborations: [data, table, graph, trend, pattern, analyse, model]
+  - code: AC9S9I05
+    level: "9"
+    dimension: SI
+    strand: Evaluating
+    topic: Evaluating & concluding
+    description: >-
+      analyse and evaluate methods, data and conclusions, and identify sources of
+      error and improvement
+    elaborations: [evaluate, conclusion, error, reliability, validity, improvement]
+achievement_standards:
+  - level: "9"
+    statements:
+      - id: AC9-AS9-CHEM
+        maps_to: [AC9S9U04, AC9S9U05]
+        text: >-
+          explains how chemical reactions rearrange atoms and how factors affect
+          reaction rate and energy change
+misconception_library:
+  - id: AC9-MSC-01
+    outcome_codes: [AC9S9U03]
+    text: confuses the charges of electrons and protons
+  - id: AC9-MSC-02
+    outcome_codes: [AC9S9U04]
+    text: believes mass is lost when a gas is produced in a reaction

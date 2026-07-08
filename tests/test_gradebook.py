@@ -92,7 +92,7 @@ def test_render_gradebook_is_self_contained(workbook):
     assert html.startswith("<!DOCTYPE html>")
     assert "<script src" not in html and "https://" not in html.split("</title>")[1]
     for needle in ("Overview", "SAC 1", "SAC 5", "Skills &amp; content",
-                   "Question performance by cohort quartile", "SMITH, Ann"):
+                   "Question performance", "Student spotlight", "SMITH, Ann"):
         assert needle in html, needle
 
 

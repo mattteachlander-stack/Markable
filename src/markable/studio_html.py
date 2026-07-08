@@ -78,6 +78,13 @@ _TOOLS = [
      "CLI: <code>markable ingest draft.md</code> then <code>markable build packages/my-test</code>. "
      "Or drop a draft in the <b>AI-marking readiness</b> box below to see what needs fixing first.",
      "Prep my test", "show('home');scrollToEl('drop-doc');$('drop-doc-input').click()"),
+    ("✨", "Assessment Optimiser",
+     "Optimise any assessment for AI marking: unique IDs, explicit marks, typed items and "
+     "tightened wording — your questions and difficulty preserved, every change logged, "
+     "with a before/after readiness score.",
+     "Open the <b>Assessment optimiser</b> (left menu, under AI cloud), drop your test in, "
+     "and download the optimised version. CLI twin: <code>markable improve draft.docx</code>.",
+     "Optimise my assessment", "show('optimise')"),
     ("🖨️", "Scan",
      "Read scanned scripts back in any order or orientation: deskews to the page's "
      "registration marks, matches each page by QR, and crops every answer zone.",
@@ -388,6 +395,17 @@ table.plain td{border-bottom:1px solid var(--grid);padding:6px 10px 6px 0}
 .keyfield input{padding:8px 10px;border-radius:8px;border:1px solid var(--border);
   background:var(--page);color:var(--ink);font:inherit;width:260px}
 .nav-item.sub{padding-left:26px;font-size:12.5px;opacity:.85}
+/* assessment optimiser */
+.opt-flow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:16px 0 18px}
+.opt-step{background:var(--surface);border:1px solid var(--border);border-radius:99px;
+  padding:8px 16px 8px 8px;display:flex;gap:8px;align-items:center;font-size:13px;color:var(--ink-2)}
+.opt-n{width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;font-weight:700;
+  font-size:13px;display:flex;align-items:center;justify-content:center}
+.opt-arrow{color:var(--muted)}
+.beforeafter{display:flex;gap:26px;align-items:center;flex-wrap:wrap;margin:6px 0 14px}
+.beforeafter .ba{display:flex;gap:12px;align-items:center}
+.beforeafter .ba .lbl{color:var(--ink-2);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+.ba-arrow{font-size:26px;color:var(--accent)}
 .aim-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
 .aim-step{position:relative}
 .aim-step .stepnum{position:absolute;top:10px;left:12px;width:24px;height:24px;border-radius:50%;
@@ -659,13 +677,52 @@ def render_studio(embedded: dict | None = None) -> str:
 
   <div class="aim-actions">
     <button class="btn" id="aim-mark-btn" onclick="markScans()">🤖 Mark the scripts</button>
-    <button class="btn ghost" onclick="upgradeFromAim()">🪄 Only reformat the test (no scans needed)</button>
+    <button class="btn ghost" onclick="show('optimise')">✨ Optimise the test first (no scans needed)</button>
   </div>
 
   <div class="result" id="aim-result"></div>
 
   <div class="privacy-note">🔒 Files go directly from this browser to the AI provider you chose,
   over HTTPS — there is no Markable server in between.</div>
+</div>
+"""
+
+    optimise = """
+<div class="view" id="view-optimise">
+  <h1>✨ Assessment optimiser <span class="beta-chip">cloud</span></h1>
+  <p class="lead">Drop in any test or assessment and get back a version optimised for reliable
+  AI marking — unique question IDs, explicit marks, typed items, tightened wording — with a
+  change log and a before/after readiness score. Your questions, difficulty and topics are
+  preserved: it restructures, it never rewrites your assessment.</p>
+
+  <div class="opt-flow">
+    <div class="opt-step"><span class="opt-n">1</span> Upload your assessment</div>
+    <div class="opt-arrow">→</div>
+    <div class="opt-step"><span class="opt-n">2</span> Markable checks AI-readiness</div>
+    <div class="opt-arrow">→</div>
+    <div class="opt-step"><span class="opt-n">3</span> AI optimises it</div>
+    <div class="opt-arrow">→</div>
+    <div class="opt-step"><span class="opt-n">4</span> Review changes &amp; download</div>
+  </div>
+
+  <div class="uploads" style="grid-template-columns:1fr">
+    <div class="drop" id="drop-opt">
+      <div class="big">✨</div>
+      <h3>Assessment → AI-optimised assessment</h3>
+      <p>Drop your test (.docx, .md or .txt). You'll see its readiness score first,
+      then one click optimises it with <span class="prov-name">Claude</span>.</p>
+      <button class="btn" onclick="$('drop-opt-input').click()">Choose assessment</button>
+      <input id="drop-opt-input" type="file" accept=".docx,.md,.txt,.markdown" hidden>
+      <div class="hint">Powered by your own AI key — set up under
+        <a href="#" onclick="show('aimark');scrollToEl('prov-claude');return false">Claude / Copilot setup</a>.</div>
+      <div class="status" id="opt-status"></div>
+    </div>
+  </div>
+
+  <div class="result" id="opt-result"></div>
+
+  <div class="privacy-note">🔒 The readiness check runs locally. Optimising sends the test
+  directly from this browser to the AI provider you chose — nothing in between.</div>
 </div>
 """
 
@@ -706,9 +763,9 @@ def render_studio(embedded: dict | None = None) -> str:
     <button class="nav-item" onclick="show('home');document.getElementById('drop-xlsx-input').click()">📈 Results → dashboard</button>
     <button class="nav-item" onclick="show('home');document.getElementById('drop-doc-input').click()">📝 Test → AI-marking prep</button>
     <h4>AI cloud</h4>
+    <button class="nav-item" data-view="optimise" onclick="show('optimise',this)">✨ Assessment optimiser</button>
     <button class="nav-item" data-view="aimark" onclick="show('aimark',this)">🤖 AI marking studio</button>
     <button class="nav-item sub" onclick="show('aimark');scrollToEl('drop-aim-scans')">↳ Mark scanned scripts</button>
-    <button class="nav-item sub" onclick="show('aimark');scrollToEl('drop-aim-test')">↳ Reformat a test</button>
     <button class="nav-item sub" onclick="show('aimark');scrollToEl('prov-claude')">↳ Claude / Copilot setup</button>
     <h4>Reports</h4>
     {_report_nav()}
@@ -716,6 +773,7 @@ def render_studio(embedded: dict | None = None) -> str:
   </nav>
   <main class="main">
     {landing}
+    {optimise}
     {aimark}
     {_guide_view()}
     {report_frames}
@@ -1288,6 +1346,7 @@ function setProvider(p){
   if(c){c.classList.toggle('on',p==='claude');o.classList.toggle('on',p==='copilot');
     $('keys-claude').style.display=p==='claude'?'flex':'none';
     $('keys-copilot').style.display=p==='copilot'?'flex':'none';}
+  document.querySelectorAll('.prov-name').forEach(e=>e.textContent=p==='copilot'?'Copilot':'Claude');
 }
 function getKey(){return (localStorage.getItem(KEY_STORE)||'').trim()}
 function getCp(){return {endpoint:(localStorage.getItem(CP_EP_STORE)||'').trim(),
@@ -1511,10 +1570,177 @@ function renderMarks(el,results){
     '<p class="foot">AI-proposed marks — items flagged “review” need your judgement. You remain the marker of record.</p>';
   el.classList.add('active');el.scrollIntoView({behavior:'smooth'});
 }
+/* ---------- client-side exporters: markdown → .docx / .pdf (no libraries) ---------- */
+const CRC_T=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;
+  for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c}return t})();
+function crc32(u8){let c=0xFFFFFFFF;for(let i=0;i<u8.length;i++)c=CRC_T[(c^u8[i])&255]^(c>>>8);
+  return (c^0xFFFFFFFF)>>>0}
+function makeZip(files){ // [[name, Uint8Array], …] → stored (method 0) ZIP
+  const enc=new TextEncoder();const parts=[];const cd=[];let off=0;
+  function u16(v){return [v&255,(v>>8)&255]} function u32(v){return [v&255,(v>>8)&255,(v>>16)&255,(v>>>24)&255]}
+  for(const [name,data] of files){
+    const n=enc.encode(name),crc=crc32(data);
+    const lh=new Uint8Array([0x50,0x4b,3,4,...u16(20),...u16(0),...u16(0),...u16(0),...u16(0),
+      ...u32(crc),...u32(data.length),...u32(data.length),...u16(n.length),...u16(0)]);
+    parts.push(lh,n,data);
+    cd.push({n,crc,size:data.length,off});
+    off+=lh.length+n.length+data.length;
+  }
+  const cdParts=[];let cdLen=0;
+  for(const e of cd){
+    const h=new Uint8Array([0x50,0x4b,1,2,...u16(20),...u16(20),...u16(0),...u16(0),...u16(0),...u16(0),
+      ...u32(e.crc),...u32(e.size),...u32(e.size),...u16(e.n.length),...u16(0),...u16(0),
+      ...u16(0),...u16(0),...u32(0),...u32(e.off)]);
+    cdParts.push(h,e.n);cdLen+=h.length+e.n.length;
+  }
+  const eocd=new Uint8Array([0x50,0x4b,5,6,...u16(0),...u16(0),...u16(cd.length),...u16(cd.length),
+    ...u32(cdLen),...u32(off),...u16(0)]);
+  const total=[...parts,...cdParts,eocd];
+  const out=new Uint8Array(total.reduce((a,p)=>a+p.length,0));
+  let p=0;for(const part of total){out.set(part,p);p+=part.length}
+  return out;
+}
+function xmlEsc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function mdToDocx(md){ // one paragraph per line; #/## headings bold + larger
+  const paras=md.split('\n').map(line=>{
+    const h1=/^#\s+/.test(line),h2=/^##\s+/.test(line);
+    const text=xmlEsc(line.replace(/^#{1,3}\s+/,''));
+    const rpr=h1?'<w:rPr><w:b/><w:sz w:val="36"/></w:rPr>':h2?'<w:rPr><w:b/><w:sz w:val="28"/></w:rPr>':'';
+    return '<w:p><w:r>'+rpr+'<w:t xml:space="preserve">'+text+'</w:t></w:r></w:p>';
+  }).join('');
+  const doc='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+    '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'+
+    '<w:body>'+paras+'</w:body></w:document>';
+  const ct='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'+
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'+
+    '<Default Extension="xml" ContentType="application/xml"/>'+
+    '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>';
+  const rels='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>';
+  const enc=new TextEncoder();
+  return makeZip([['[Content_Types].xml',enc.encode(ct)],['_rels/.rels',enc.encode(rels)],
+    ['word/document.xml',enc.encode(doc)]]);
+}
+function pdfSan(s){ // standard-font safe: swap common unicode for ASCII, escape PDF specials
+  return s.replace(/[—–]/g,'-').replace(/[’‘]/g,"'").replace(/[“”]/g,'"').replace(/[→]/g,'->')
+    .replace(/[×]/g,'x').replace(/[≥]/g,'>=').replace(/[≤]/g,'<=').replace(/[·•]/g,'*')
+    .replace(/[^\x20-\x7e]/g,'?').replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)');
+}
+function mdToPdf(md){ // minimal text PDF: A4, Helvetica, bold headings, wrapped lines
+  const raw=[];
+  md.split('\n').forEach(line=>{
+    const head=/^#{1,3}\s+/.test(line);
+    let t=line.replace(/^#{1,3}\s+/,'');
+    if(!t){raw.push({t:'',head:false});return}
+    while(t.length>92){let cut=t.lastIndexOf(' ',92);if(cut<40)cut=92;
+      raw.push({t:t.slice(0,cut),head});t=t.slice(cut).replace(/^ /,'')}
+    raw.push({t,head});
+  });
+  const perPage=46;const pages=[];
+  for(let i=0;i<raw.length;i+=perPage)pages.push(raw.slice(i,i+perPage));
+  if(!pages.length)pages.push([{t:'',head:false}]);
+  const objs=[];  // 1:catalog 2:pages 3:F1 4:F2 then per page: page,content
+  const pageIds=pages.map((_,i)=>5+i*2);
+  objs[1]='<< /Type /Catalog /Pages 2 0 R >>';
+  objs[2]='<< /Type /Pages /Kids ['+pageIds.map(i=>i+' 0 R').join(' ')+'] /Count '+pages.length+' >>';
+  objs[3]='<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
+  objs[4]='<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>';
+  pages.forEach((pl,i)=>{
+    let s='BT /F1 10 Tf 14 TL 56 800 Td\n';let bold=false;
+    pl.forEach(l=>{
+      if(l.head!==bold){s+=l.head?'/F2 13 Tf\n':'/F1 10 Tf\n';bold=l.head}
+      s+='('+pdfSan(l.t)+') Tj T*\n';
+    });
+    s+='ET';
+    objs[5+i*2]='<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] '+
+      '/Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents '+(6+i*2)+' 0 R >>';
+    objs[6+i*2]='<< /Length '+s.length+' >>\nstream\n'+s+'\nendstream';
+  });
+  let out='%PDF-1.4\n';const xref=[0];
+  for(let i=1;i<objs.length;i++){xref[i]=out.length;out+=i+' 0 obj\n'+objs[i]+'\nendobj\n'}
+  const startx=out.length;
+  out+='xref\n0 '+objs.length+'\n0000000000 65535 f \n';
+  for(let i=1;i<objs.length;i++)out+=String(xref[i]).padStart(10,'0')+' 00000 n \n';
+  out+='trailer\n<< /Size '+objs.length+' /Root 1 0 R >>\nstartxref\n'+startx+'\n%%EOF';
+  return new TextEncoder().encode(out);
+}
+
+/* ---------- assessment optimiser: readiness → optimise → before/after ---------- */
+let OPT_DOC=null,OPT_OUT=null;
+const OPT_FMTS={md:['Markdown (.md) — ready for markable ingest','text/markdown','.md'],
+  docx:['Word (.docx)','application/vnd.openxmlformats-officedocument.wordprocessingml.document','.docx'],
+  pdf:['PDF (.pdf)','application/pdf','.pdf']};
+function fmtSelector(){return '<select id="opt-fmt" class="picker" style="margin:0">'+
+  Object.keys(OPT_FMTS).map(k=>'<option value="'+k+'">'+esc(OPT_FMTS[k][0])+'</option>').join('')+'</select>'}
+function downloadOpt(){
+  if(!OPT_OUT)return;
+  const fmt=($('opt-fmt')&&$('opt-fmt').value)||'md';
+  const [_,mime,ext]=OPT_FMTS[fmt];
+  const data=fmt==='docx'?mdToDocx(OPT_OUT.md):fmt==='pdf'?mdToPdf(OPT_OUT.md):OPT_OUT.md;
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([data],{type:mime}));
+  a.download=OPT_OUT.base+ext;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+}
+function gauge(score){return '<div class="gauge" style="--v:'+score+'"><span>'+score+'%</span></div>'}
+wireDrop('drop-opt','drop-opt-input',async file=>{
+  const st=$('opt-status');st.className='status';st.textContent='Checking '+file.name+' …';
+  try{
+    const text=await docText(file.name,await file.arrayBuffer());
+    if(!text.trim())throw new Error('No readable text found in that document.');
+    OPT_DOC={name:file.name,text};
+    const rep=analyseReadiness(text);
+    OPT_DOC.before=rep.score;
+    const items=rep.checks.map(c=>'<li class="'+(c[1]?'li-good':'li-warn')+'">'+
+      '<b>'+esc(c[0])+'</b> — '+esc(c[1]?c[2]:c[3])+'</li>').join('');
+    $('opt-result').innerHTML='<h2 class="section">Step 2 — readiness check</h2>'+
+      '<div class="card"><div class="readiness">'+gauge(rep.score)+
+      '<div><p style="margin:0 0 6px"><b>'+esc(file.name)+'</b> — '+rep.questions+' questions found, '+
+      rep.withMarks+' with marks allocated.</p>'+
+      '<p style="margin:0;color:var(--ink-2);font-size:13px">The optimiser fixes the items below while preserving your questions, difficulty and topics.</p></div></div>'+
+      '<ul style="margin:0 0 14px;padding-left:2px;list-style:none;line-height:1.9">'+items+'</ul>'+
+      '<div class="aim-actions"><button class="btn" onclick="optimiseNow()">✨ Optimise with <span class="prov-name">'+esc(provName())+'</span></button>'+
+      '<button class="btn ghost" onclick="show(\'aimark\');scrollToEl(\'prov-claude\')">Switch AI (Claude / Copilot)</button></div></div>';
+    $('opt-result').classList.add('active');
+    st.textContent='✓ Readiness '+rep.score+'% — ready to optimise.';
+    $('opt-result').scrollIntoView({behavior:'smooth'});
+  }catch(err){st.className='status err';st.textContent='Could not read that file: '+err.message}
+});
+async function optimiseNow(){
+  if(!OPT_DOC){scrollToEl('drop-opt');return}
+  if(!needKey()){show('aimark');return}
+  const el=$('opt-result');busy(el,'Optimising “'+OPT_DOC.name+'” with '+provName()+'…');
+  try{
+    const out=await callAI({system:IMPROVE_PACK,schema:IMPROVE_SCHEMA,
+      content:[{type:'text',text:'Upgrade this draft test:\n\n'+OPT_DOC.text}]});
+    const after=analyseReadiness(out.improved_markdown).score;
+    const changes=(out.changes||[]).map(c=>'<li><b>'+esc(c.question_id)+'</b> — '+esc(c.change)+
+      ' <span class="muted">('+esc(c.reason)+')</span></li>').join('');
+    OPT_OUT={md:out.improved_markdown,base:OPT_DOC.name.replace(/\.[^.]+$/,'')+'.optimised'};
+    el.innerHTML='<h2 class="section">Step 4 — optimised assessment</h2>'+
+      '<div class="card">'+
+      '<div class="beforeafter"><div class="ba"><span class="lbl">Before</span>'+gauge(OPT_DOC.before)+'</div>'+
+      '<span class="ba-arrow">→</span>'+
+      '<div class="ba"><span class="lbl">After</span>'+gauge(after)+'</div>'+
+      '<p style="margin:0;max-width:420px">'+esc(out.summary||'')+'</p></div>'+
+      '<div class="aim-actions">'+fmtSelector()+
+      '<button class="btn" onclick="downloadOpt()">⬇ Download optimised test</button>'+
+      '<button class="btn ghost" onclick="show(\'aimark\')">Next: mark scripts against it →</button></div>'+
+      '<h3>Every change, logged <span class="muted">(verify anything inferred)</span></h3>'+
+      '<ul class="changes">'+changes+'</ul>'+
+      '<h3>Preview</h3><pre style="white-space:pre-wrap;background:var(--page);border:1px solid var(--border);border-radius:8px;padding:12px;max-height:420px;overflow:auto">'+
+      esc(out.improved_markdown)+'</pre>'+
+      '<p class="foot">The after-score is Markable\'s own readiness check re-run on the optimised version. '+
+      'For the full pipeline, run <code>markable ingest</code> → <code>markable build</code> on the downloaded file.</p></div>';
+    el.classList.add('active');el.scrollIntoView({behavior:'smooth'});
+  }catch(err){el.innerHTML='<div class="card"><p class="status err" style="display:block">Optimisation failed: '+esc(err.message)+'</p></div>'}
+}
 (function(){
   const k=$('api-key');if(k&&getKey())k.value=getKey();
   const ep=$('cp-endpoint'),ck=$('cp-key');
   if(ep)ep.value=getCp().endpoint; if(ck)ck.value=getCp().key;
   setProvider(PROVIDER);
+  document.querySelectorAll('.prov-name').forEach(e=>e.textContent=provName());
 })();
 """

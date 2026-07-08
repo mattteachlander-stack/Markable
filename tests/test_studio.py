@@ -78,6 +78,22 @@ def test_ai_cloud_features_present():
         assert el in html, el
 
 
+def test_assessment_optimiser_page():
+    """A dedicated optimiser tool: upload → local readiness → AI optimise →
+    before/after score + change log + download."""
+    html = render_studio()
+    assert 'id="view-optimise"' in html
+    for el in ("drop-opt-input", "optimiseNow", "OPT_DOC", "beforeafter",
+               "Assessment optimiser", "Assessment Optimiser"):  # page + tool card
+        assert el in html, el
+    # it re-scores the optimised output locally for the after-gauge
+    assert "analyseReadiness(out.improved_markdown)" in html
+    # export format selector: markdown, Word or PDF — generated client-side
+    for el in ("opt-fmt", "downloadOpt", "mdToDocx", "mdToPdf", "makeZip", "crc32",
+               "wordprocessingml.document", "application/pdf"):
+        assert el in html, el
+
+
 def test_in_browser_dashboard_has_gradebook_parity():
     """The uploader engine mirrors render_gradebook: term toggle, key highlights,
     class-question analysis and a student spotlight — not just the basic tabs."""

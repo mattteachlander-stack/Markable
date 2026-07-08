@@ -46,6 +46,7 @@ markable analyse <draft|package> --curriculum <id> → test_analysis.html + CSV 
 markable gradebook <xlsx> [--study-design <id> --map sacmap.yaml] → sac_dashboard.html ✓
 markable studio → markable.html (single-file hub: landing + left nav + upload boxes) ✓
 markable improve <draft> → <draft>.improved.md + change log (Claude upgrade pack)   ✓
+markable rubric <draft|package> → key.yaml (AI-drafted marking key, Key schema)     ✓
 markable powerbi <xlsx> [--study-design <id> --map sacmap.yaml] → tidy star-schema CSVs + guide ✓
 ```
 

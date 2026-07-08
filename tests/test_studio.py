@@ -102,6 +102,21 @@ def test_assessment_optimiser_page():
         assert el in html, el
 
 
+def test_rubric_builder_page():
+    """Rubric builder: test → AI-drafted key → editable UI → key.yaml /
+    printable export, plus the no-key prompt path."""
+    html = render_studio()
+    assert 'id="view-rubric"' in html
+    for el in ("drop-rub-input", "genRubric", "renderRubricEditor", "collectRubric",
+               "keyYaml", "downloadKeyYaml", "downloadRubricDoc", "sumCheck",
+               "RUBRIC_PACK", "RUBRIC_SCHEMA", "genRubricPrompt", "rubricPasteBack",
+               "Rubric Builder"):  # page + tool card
+        assert el in html, el
+    # editable controls: criteria rows, distractor notes, bands, accept/reject
+    for el in ("crit-point", "crit-marks", "dn-note", "band-row", "-accept", "-reject"):
+        assert el in html, el
+
+
 def test_in_browser_dashboard_has_gradebook_parity():
     """The uploader engine mirrors render_gradebook: term toggle, key highlights,
     class-question analysis and a student spotlight — not just the basic tabs."""

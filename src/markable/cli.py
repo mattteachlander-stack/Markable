@@ -560,6 +560,58 @@ def improve(
     )
 
 
+@app.command()
+def rubric(
+    source: Path = typer.Argument(..., exists=True, help="Test (.md/.txt/.docx) or a package dir."),
+    out: Optional[Path] = typer.Option(None, "-o", "--out", help="Key path (default: key.yaml beside the source / in the package)."),
+    model: str = typer.Option("claude-opus-4-8", help="Anthropic model id."),
+) -> None:
+    """AI-draft the full marking key (rubric) for a test → key.yaml."""
+    from .improve import extract_text
+    from .rubric import marks_check, run_rubric, to_key, write_key
+
+    try:
+        if source.is_dir():
+            text = (source / "assessment.yaml").read_text(encoding="utf-8")
+            target = out or source / "key.yaml"
+        else:
+            text = extract_text(source)
+            target = out or source.parent / "key.yaml"
+        payload = run_rubric(text, model=model)
+        key = to_key(payload)
+    except (RuntimeError, ValueError, FileNotFoundError) as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
+
+    if target.exists():
+        backup = target.with_suffix(".yaml.bak")
+        backup.write_text(target.read_text(encoding="utf-8"), encoding="utf-8")
+        console.print(f"  [dim]existing key backed up → {backup.name}[/dim]")
+    write_key(key, target)
+
+    table = Table(title="Drafted marking key", show_edge=False)
+    for col in ("Question", "Type", "Marks", "Criteria", "Extras"):
+        table.add_column(col)
+    for e in key.questions:
+        extras = []
+        if e.correct:
+            extras.append(f"correct {e.correct}")
+        if e.final_answer:
+            extras.append(f"answer {e.final_answer}")
+        if e.rubric:
+            extras.append(f"{len(e.rubric)} bands")
+        table.add_row(e.id, e.type.value, str(e.marks), str(len(e.criteria)), ", ".join(extras) or "—")
+    console.print(table)
+
+    for p in marks_check(payload):
+        console.print(f"[yellow]⚠ {p}[/yellow]")
+    if payload.get("verify"):
+        console.print("[bold]Verify before marking:[/bold]")
+        for v in payload["verify"]:
+            console.print(f"  • {v['question_id']}: {v['note']}")
+    console.print(f"[green]✓[/green] Marking key → [bold]{target}[/bold] · {key.total_marks} marks total")
+
+
 @curriculum_app.command("import")
 def curriculum_import(
     source: Path = typer.Argument(..., exists=True, help="Curriculum source (pack.yaml; MRAC/PDF later)."),

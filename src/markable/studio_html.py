@@ -78,6 +78,13 @@ _TOOLS = [
      "CLI: <code>markable ingest draft.md</code> then <code>markable build packages/my-test</code>. "
      "Or drop a draft in the <b>AI-marking readiness</b> box below to see what needs fixing first.",
      "Prep my test", "show('home');scrollToEl('drop-doc');$('drop-doc-input').click()"),
+    ("📐", "Rubric Builder",
+     "AI-drafts the complete marking key from your test: criteria with marks, accept/reject "
+     "lists, MCQ answers with distractor notes, and banded rubrics for extended responses — "
+     "editable on the page, exported as key.yaml or a printable rubric.",
+     "Open the <b>Rubric builder</b> (left menu, under AI cloud). CLI twin: "
+     "<code>markable rubric draft.md</code> → <b>key.yaml</b>.",
+     "Build my rubric", "show('rubric')"),
     ("✨", "Assessment Optimiser",
      "Optimise any assessment for AI marking: unique IDs, explicit marks, typed items and "
      "tightened wording — your questions and difficulty preserved, every change logged, "
@@ -402,6 +409,22 @@ table.plain td{border-bottom:1px solid var(--grid);padding:6px 10px 6px 0}
 .opt-n{width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;font-weight:700;
   font-size:13px;display:flex;align-items:center;justify-content:center}
 .opt-arrow{color:var(--muted)}
+/* rubric editor */
+.rq .sublbl{display:block;margin:10px 0 6px;font-size:12px;color:var(--ink-2);text-transform:uppercase;letter-spacing:.05em}
+.crit-row,.band-row{display:flex;gap:8px;margin-bottom:6px;align-items:center}
+.crit-row input,.band-row input,.kv-edit input{padding:7px 10px;border-radius:8px;border:1px solid var(--border);
+  background:var(--page);color:var(--ink);font:inherit}
+.crit-point,.band-desc,.dn-note{flex:1}
+.crit-marks{width:64px}
+.mini{appearance:none;border:1px solid var(--border);background:var(--surface);color:var(--ink-2);
+  border-radius:8px;padding:5px 10px;font:inherit;font-size:12px;cursor:pointer}
+.mini.add{margin-top:2px;color:var(--accent);border-color:var(--accent)}
+.kv-edit{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0}
+.kv-edit label{color:var(--ink-2);font-size:12.5px}
+.kv-edit input{flex:1;min-width:140px}
+.sum-chip{font-size:12px;font-weight:600;border-radius:99px;padding:2px 10px;margin-left:6px}
+.sum-chip.ok{color:var(--accent);border:1px solid var(--accent)}
+.sum-chip.bad{color:#a15c00;border:1px solid #e79a41}
 .optways{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
 .optway{background:var(--page);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
 .optway h4{margin:0 0 4px;font-size:14px}
@@ -524,15 +547,18 @@ def render_studio(embedded: dict | None = None) -> str:
         "heatDark": [b[2] for b in _HEAT],
     }
     from .improve import IMPROVE_SCHEMA, INSTRUCTION_PACK
+    from .rubric import RUBRIC_PACK, RUBRIC_SCHEMA
 
     ramp_js = (
         "const RAMPS=" + json.dumps(ramps) + ";\n"
         + "const PACKS=" + json.dumps(_packs_payload()) + ";\n"
         + "const STUDIO_CSS=" + json.dumps(_CSS) + ";\n"
-        # The CLI (`markable improve`) and the in-browser upgrader send the
-        # identical instruction package — one source of truth in improve.py.
+        # The CLI (`markable improve` / `markable rubric`) and the in-browser
+        # tools send identical instruction packages — one source of truth each.
         + "const IMPROVE_PACK=" + json.dumps(INSTRUCTION_PACK) + ";\n"
-        + "const IMPROVE_SCHEMA=" + json.dumps(IMPROVE_SCHEMA) + ";"
+        + "const IMPROVE_SCHEMA=" + json.dumps(IMPROVE_SCHEMA) + ";\n"
+        + "const RUBRIC_PACK=" + json.dumps(RUBRIC_PACK) + ";\n"
+        + "const RUBRIC_SCHEMA=" + json.dumps(RUBRIC_SCHEMA) + ";"
     )
 
     landing = f"""
@@ -730,6 +756,35 @@ def render_studio(embedded: dict | None = None) -> str:
 </div>
 """
 
+    rubric_view = """
+<div class="view" id="view-rubric">
+  <h1>📐 Rubric builder <span class="beta-chip">cloud</span></h1>
+  <p class="lead">Drop in a test and get back a complete draft marking key: criteria with
+  marks for every question, accept/reject lists, MCQ answers with distractor notes, and
+  banded rubrics for extended responses. Edit it right here, then export
+  <code>key.yaml</code> for the marking pipeline — or a printable rubric for colleagues.</p>
+
+  <div class="uploads" style="grid-template-columns:1fr">
+    <div class="drop" id="drop-rub">
+      <div class="big">📐</div>
+      <h3>Test → draft marking key</h3>
+      <p>Drop the test (.docx, .md or .txt). Then generate the key with
+      <span class="prov-name">Claude</span>, or get a prompt for your own AI.</p>
+      <button class="btn" onclick="$('drop-rub-input').click()">Choose test</button>
+      <input id="drop-rub-input" type="file" accept=".docx,.md,.txt,.markdown" hidden>
+      <div class="hint">AI setup lives under
+        <a href="#" onclick="show('aimark');scrollToEl('prov-claude');return false">Claude / Copilot setup</a>.</div>
+      <div class="status" id="rub-status"></div>
+    </div>
+  </div>
+
+  <div class="result" id="rub-result"></div>
+
+  <div class="privacy-note">🔒 Generating a key sends the test directly from this browser to
+  the AI you chose. Every inference is listed for you to verify — you own the final key.</div>
+</div>
+"""
+
     import html as _html
 
     embedded = embedded or {}
@@ -768,6 +823,7 @@ def render_studio(embedded: dict | None = None) -> str:
     <button class="nav-item" onclick="show('home');document.getElementById('drop-doc-input').click()">📝 Test → AI-marking prep</button>
     <h4>AI cloud</h4>
     <button class="nav-item" data-view="optimise" onclick="show('optimise',this)">✨ Assessment optimiser</button>
+    <button class="nav-item" data-view="rubric" onclick="show('rubric',this)">📐 Rubric builder</button>
     <button class="nav-item" data-view="aimark" onclick="show('aimark',this)">🤖 AI marking studio</button>
     <button class="nav-item sub" onclick="show('aimark');scrollToEl('drop-aim-scans')">↳ Mark scanned scripts</button>
     <button class="nav-item sub" onclick="show('aimark');scrollToEl('prov-claude')">↳ Claude / Copilot setup</button>
@@ -778,6 +834,7 @@ def render_studio(embedded: dict | None = None) -> str:
   <main class="main">
     {landing}
     {optimise}
+    {rubric_view}
     {aimark}
     {_guide_view()}
     {report_frames}
@@ -1815,6 +1872,211 @@ function pasteBack(){
   // tolerate a pasted ``` fence around the test
   md=md.replace(/^```[a-z]*\n?/,'').replace(/\n?```\s*$/,'');
   renderOptimised(md,'','Optimised with your own AI — scored by Markable\'s readiness check.');
+}
+/* ---------- rubric builder: test → editable marking key → key.yaml / print ---------- */
+let RUB_DOC=null,RUB=null;
+wireDrop('drop-rub','drop-rub-input',async file=>{
+  const st=$('rub-status');st.className='status';st.textContent='Reading '+file.name+' …';
+  try{
+    const text=await docText(file.name,await file.arrayBuffer());
+    if(!text.trim())throw new Error('No readable text found in that document.');
+    RUB_DOC={name:file.name,text};
+    st.textContent='✓ '+file.name;
+    $('rub-result').innerHTML='<div class="card"><div class="optways">'+
+      '<div class="optway"><h4>Option A — draft it right here</h4>'+
+      '<p class="hint">Uses your saved API key (<span class="prov-name">'+esc(provName())+'</span>).</p>'+
+      '<div class="aim-actions" style="margin:8px 0 0"><button class="btn" onclick="genRubric()">📐 Draft the marking key</button></div></div>'+
+      '<div class="optway"><h4>Option B — use your own AI, no key</h4>'+
+      '<p class="hint">Get a packaged prompt; paste the YAML the AI returns straight back as key.yaml.</p>'+
+      '<div class="aim-actions" style="margin:8px 0 0"><select id="rub-chat-ai" class="picker" style="margin:0">'+
+      '<option value="claude">Claude (claude.ai)</option><option value="chatgpt">ChatGPT (chatgpt.com)</option>'+
+      '<option value="copilot">Copilot (copilot.microsoft.com)</option></select>'+
+      '<button class="btn" onclick="genRubricPrompt()">📋 Generate the prompt</button></div></div>'+
+      '</div></div>';
+    $('rub-result').classList.add('active');
+  }catch(err){st.className='status err';st.textContent='Could not read that file: '+err.message}
+});
+async function genRubric(){
+  if(!RUB_DOC){scrollToEl('drop-rub');return}
+  if(!needKey()){show('rubric');return}
+  const el=$('rub-result');busy(el,'Drafting the marking key for “'+RUB_DOC.name+'” with '+provName()+'…');
+  try{
+    RUB=await callAI({system:RUBRIC_PACK,schema:RUBRIC_SCHEMA,
+      content:[{type:'text',text:'Draft the marking key for this test:\n\n'+RUB_DOC.text}]});
+    renderRubricEditor();
+  }catch(err){el.innerHTML='<div class="card"><p class="status err" style="display:block">Rubric drafting failed: '+esc(err.message)+'</p></div>'}
+}
+function critRow(qi,ci,c){
+  return '<div class="crit-row" data-q="'+qi+'">'+
+    '<input class="crit-point" value="'+esc(c.point)+'" placeholder="what earns the mark">'+
+    '<input class="crit-marks" type="number" min="0" step="1" value="'+c.marks+'">'+
+    '<button class="mini" onclick="this.parentNode.remove();sumCheck('+qi+')" title="remove">✕</button></div>';
+}
+function bandRow(b){
+  return '<div class="band-row"><input class="band-name" value="'+esc(b.band)+'" placeholder="band">'+
+    '<input class="band-desc" value="'+esc(b.descriptor)+'" placeholder="descriptor">'+
+    '<button class="mini" onclick="this.parentNode.remove()" title="remove">✕</button></div>';
+}
+function renderRubricEditor(){
+  const el=$('rub-result');
+  const verify=(RUB.verify||[]).map(v=>'<li><b>'+esc(v.question_id)+'</b> — '+esc(v.note)+'</li>').join('');
+  let cards='';
+  RUB.questions.forEach((q,qi)=>{
+    let extra='';
+    if(q.type==='mcq'){
+      const notes=(q.distractor_notes||[]).map(d=>'<div class="band-row"><input class="dn-opt" value="'+esc(d.option)+'" style="width:52px">'+
+        '<input class="dn-note" value="'+esc(d.note)+'" placeholder="what this distractor represents"></div>').join('');
+      extra='<div class="kv-edit"><label>Correct option</label><input id="rq'+qi+'-correct" value="'+esc(q.correct||'')+'" style="width:64px"></div>'+
+        '<label class="sublbl">Distractor notes</label><div id="rq'+qi+'-notes">'+notes+'</div>';
+    }
+    if(q.type==='numerical'){
+      extra='<div class="kv-edit"><label>Final answer</label><input id="rq'+qi+'-final" value="'+esc(q.final_answer||'')+'">'+
+        '<label>± tolerance</label><input id="rq'+qi+'-tol" type="number" step="any" value="'+(q.tolerance==null?'':q.tolerance)+'" style="width:90px"></div>';
+    }
+    let bands='';
+    if(q.type==='extended'){
+      bands='<label class="sublbl">Rubric bands</label><div id="rq'+qi+'-bands">'+
+        (q.rubric||[]).map(bandRow).join('')+'</div>'+
+        '<button class="mini add" onclick="$(\'rq'+qi+'-bands\').insertAdjacentHTML(\'beforeend\',bandRow({band:\'\',descriptor:\'\'}))">+ band</button>';
+    }
+    const crits=(q.criteria||[]).map((c,ci)=>critRow(qi,ci,c)).join('');
+    cards+='<div class="card rq" id="rq'+qi+'">'+
+      '<h3>'+esc(q.id)+' <span class="muted">['+esc(q.type)+', '+q.marks+' mark'+(q.marks==1?'':'s')+']</span>'+
+      ' <span class="sum-chip" id="rq'+qi+'-sum"></span></h3>'+extra+
+      (q.type!=='mcq'?'<label class="sublbl">Criteria <span class="muted">(marks must sum to '+q.marks+')</span></label>'+
+        '<div id="rq'+qi+'-crit" oninput="sumCheck('+qi+')">'+crits+'</div>'+
+        '<button class="mini add" onclick="$(\'rq'+qi+'-crit\').insertAdjacentHTML(\'beforeend\',critRow('+qi+',99,{point:\'\',marks:1}));sumCheck('+qi+')">+ criterion</button>':'')+
+      (q.type!=='mcq'?'<div class="kv-edit"><label>Accept</label><input id="rq'+qi+'-accept" value="'+esc((q.accept||[]).join('; '))+'" placeholder="alternative correct answers; separated by ;">'+
+        '<label>Reject</label><input id="rq'+qi+'-reject" value="'+esc((q.reject||[]).join('; '))+'" placeholder="common wrong answers; separated by ;"></div>':'')+
+      bands+'</div>';
+  });
+  el.innerHTML='<h2 class="section">Draft marking key — edit anything, then export</h2>'+
+    (verify?'<div class="card highlights"><h3>⚠ Verify before marking</h3><ul class="hi-list">'+verify+'</ul></div>':'')+
+    '<div class="aim-actions">'+
+    '<button class="btn" onclick="downloadKeyYaml()">⬇ key.yaml (for markable mark)</button>'+
+    '<select id="rub-fmt" class="picker" style="margin:0"><option value="docx">Printable rubric (.docx)</option><option value="pdf">Printable rubric (.pdf)</option><option value="md">Markdown (.md)</option></select>'+
+    '<button class="btn ghost" onclick="downloadRubricDoc()">⬇ Download printable</button></div>'+
+    cards;
+  el.classList.add('active');el.scrollIntoView({behavior:'smooth'});
+  RUB.questions.forEach((_,qi)=>sumCheck(qi));
+}
+function sumCheck(qi){
+  const box=$('rq'+qi+'-crit'),chip=$('rq'+qi+'-sum');if(!chip)return;
+  if(!box){chip.textContent='';return}
+  let sum=0;box.querySelectorAll('.crit-marks').forEach(i=>sum+=parseFloat(i.value)||0);
+  const want=RUB.questions[qi].marks;
+  chip.textContent=sum===want?'✓ marks sum':'⚠ criteria sum '+sum+' of '+want;
+  chip.className='sum-chip '+(sum===want?'ok':'bad');
+}
+function collectRubric(){
+  const out={test_id:RUB.test_id,total_marks:0,questions:[]};
+  RUB.questions.forEach((q,qi)=>{
+    const e={id:q.id,type:q.type,marks:q.marks};
+    if(q.type==='mcq'){
+      e.correct=($('rq'+qi+'-correct')||{}).value||null;
+      const notes={};document.querySelectorAll('#rq'+qi+'-notes .band-row').forEach(r=>{
+        const o=r.querySelector('.dn-opt').value.trim(),n=r.querySelector('.dn-note').value.trim();
+        if(o&&n)notes[o]=n});
+      if(Object.keys(notes).length)e.distractor_notes=notes;
+    }else{
+      e.criteria=[];document.querySelectorAll('#rq'+qi+'-crit .crit-row').forEach(r=>{
+        const p=r.querySelector('.crit-point').value.trim(),m=parseInt(r.querySelector('.crit-marks').value)||0;
+        if(p)e.criteria.push({point:p,marks:m})});
+      const acc=($('rq'+qi+'-accept')||{}).value||'',rej=($('rq'+qi+'-reject')||{}).value||'';
+      e.accept=acc.split(';').map(s=>s.trim()).filter(Boolean);
+      e.reject=rej.split(';').map(s=>s.trim()).filter(Boolean);
+    }
+    if(q.type==='numerical'){
+      e.final_answer=($('rq'+qi+'-final')||{}).value||null;
+      const t=($('rq'+qi+'-tol')||{}).value;e.tolerance=t===''?null:parseFloat(t);
+    }
+    if(q.type==='extended'){
+      e.rubric=[];document.querySelectorAll('#rq'+qi+'-bands .band-row').forEach(r=>{
+        const b=r.querySelector('.band-name').value.trim(),d=r.querySelector('.band-desc').value.trim();
+        if(b&&d)e.rubric.push({band:b,descriptor:d})});
+    }
+    e.review_threshold=(q.type==='extended'||q.type==='diagram')?0.9:0.85;
+    out.total_marks+=q.marks;out.questions.push(e);
+  });
+  return out;
+}
+function y(s){return JSON.stringify(String(s))} // YAML-safe scalar (double-quoted)
+function keyYaml(k){
+  let out='# Marking key drafted in Markable\'s Rubric builder — teacher-reviewed export.\n'+
+    'test_id: '+y(k.test_id)+'\ntotal_marks: '+k.total_marks+'\nquestions:\n';
+  k.questions.forEach(q=>{
+    out+='- id: '+y(q.id)+'\n  type: '+q.type+'\n  marks: '+q.marks+'\n';
+    if(q.correct)out+='  correct: '+y(q.correct)+'\n';
+    if(q.distractor_notes){out+='  distractor_notes:\n';
+      Object.keys(q.distractor_notes).forEach(o=>out+='    '+y(o)+': '+y(q.distractor_notes[o])+'\n')}
+    if(q.criteria&&q.criteria.length){out+='  criteria:\n';
+      q.criteria.forEach(c=>out+='  - point: '+y(c.point)+'\n    marks: '+c.marks+'\n')}
+    if(q.accept&&q.accept.length){out+='  accept:\n';q.accept.forEach(a=>out+='  - '+y(a)+'\n')}
+    if(q.reject&&q.reject.length){out+='  reject:\n';q.reject.forEach(a=>out+='  - '+y(a)+'\n')}
+    if(q.final_answer)out+='  final_answer: '+y(q.final_answer)+'\n';
+    if(q.tolerance!=null)out+='  tolerance: '+q.tolerance+'\n';
+    if(q.rubric&&q.rubric.length){out+='  rubric:\n';
+      q.rubric.forEach(b=>out+='  - band: '+y(b.band)+'\n    descriptor: '+y(b.descriptor)+'\n')}
+    out+='  review_threshold: '+q.review_threshold+'\n';
+  });
+  return out;
+}
+function rubricMd(k){
+  let md='# Marking key — '+k.test_id+'\nTotal: '+k.total_marks+' marks\n';
+  k.questions.forEach(q=>{
+    md+='\n## '+q.id+' ['+q.type+', '+q.marks+']\n';
+    if(q.correct)md+='Correct: '+q.correct+'\n';
+    if(q.distractor_notes)Object.keys(q.distractor_notes).forEach(o=>md+='- '+o+') '+q.distractor_notes[o]+'\n');
+    (q.criteria||[]).forEach(c=>md+='- ['+c.marks+'] '+c.point+'\n');
+    if(q.accept&&q.accept.length)md+='Accept: '+q.accept.join('; ')+'\n';
+    if(q.reject&&q.reject.length)md+='Reject: '+q.reject.join('; ')+'\n';
+    if(q.final_answer)md+='Final answer: '+q.final_answer+(q.tolerance!=null?' (±'+q.tolerance+')':'')+'\n';
+    (q.rubric||[]).forEach(b=>md+='- '+b.band+': '+b.descriptor+'\n');
+  });
+  return md;
+}
+function dlBlob(data,fname,mime){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([data],{type:mime}));
+  a.download=fname;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+}
+function downloadKeyYaml(){dlBlob(keyYaml(collectRubric()),'key.yaml','text/yaml')}
+function downloadRubricDoc(){
+  const k=collectRubric(),md=rubricMd(k),fmt=($('rub-fmt')||{}).value||'docx';
+  if(fmt==='docx')dlBlob(mdToDocx(md),k.test_id+'-rubric.docx','application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+  else if(fmt==='pdf')dlBlob(mdToPdf(md),k.test_id+'-rubric.pdf','application/pdf');
+  else dlBlob(md,k.test_id+'-rubric.md','text/markdown');
+}
+function rubricChatPack(){
+  return RUBRIC_PACK.replace(/Return JSON:[\s\S]*$/,
+    'Return the complete marking key as YAML in ONE code block, shaped exactly like:\n'+
+    'test_id: ...\ntotal_marks: ...\nquestions:\n- id: Q1\n  type: mcq\n  marks: 1\n  correct: C\n'+
+    '  distractor_notes: {A: "...", B: "...", D: "..."}\n- id: Q2\n  type: short_answer\n  marks: 2\n'+
+    '  criteria:\n  - point: "..."\n    marks: 1\n  accept: ["..."]\n  reject: ["..."]\n'+
+    '(final_answer/tolerance for numerical; rubric bands for extended; omit fields that do not apply.)\n'+
+    'After the code block, list anything the teacher must verify.');
+}
+function genRubricPrompt(){
+  if(!RUB_DOC){scrollToEl('drop-rub');return}
+  const which=($('rub-chat-ai')&&$('rub-chat-ai').value)||'claude';
+  const [name,url]=CHAT_AIS[which];
+  const prompt=rubricChatPack()+'\n\n=== THE TEST (extracted by Markable from “'+RUB_DOC.name+'”) ===\n\n'+RUB_DOC.text;
+  const el=$('rub-result');
+  el.innerHTML='<h2 class="section">Your rubric prompt for '+esc(name)+'</h2>'+
+    '<div class="card"><div class="aim-actions">'+
+    '<button class="btn" onclick="fallbackCopy($(\'rub-prompt\').textContent,()=>{})">📋 Copy prompt</button>'+
+    dlButton('⬇ Download prompt (.txt)',prompt,RUB_DOC.name.replace(/\.[^.]+$/,'')+'.rubric-prompt.txt','text/plain')+
+    '<a class="btn ghost" href="'+url+'" target="_blank" rel="noopener">Open '+esc(name)+' ↗</a></div>'+
+    '<pre id="rub-prompt" style="white-space:pre-wrap;background:var(--page);border:1px solid var(--border);border-radius:8px;padding:12px;max-height:300px;overflow:auto">'+esc(prompt)+'</pre>'+
+    '<h3>Then bring the YAML back</h3>'+
+    '<p class="hint" style="margin-top:0">Paste the YAML '+esc(name)+' returned — Markable saves it as key.yaml.</p>'+
+    '<textarea id="rub-paste" placeholder="Paste the key.yaml content here…" style="width:100%;min-height:120px;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--page);color:var(--ink);font:13px/1.5 ui-monospace,monospace"></textarea>'+
+    '<div class="aim-actions" style="margin-top:10px"><button class="btn" onclick="rubricPasteBack()">⬇ Save as key.yaml</button></div></div>';
+  el.classList.add('active');el.scrollIntoView({behavior:'smooth'});
+}
+function rubricPasteBack(){
+  let t=($('rub-paste')||{}).value||'';t=t.trim().replace(/^```[a-z]*\n?/,'').replace(/\n?```\s*$/,'');
+  if(!t)return;dlBlob(t,'key.yaml','text/yaml');
 }
 (function(){
   const k=$('api-key');if(k&&getKey())k.value=getKey();

@@ -202,10 +202,11 @@ def _guide_view() -> str:
     <tr><td><b>Test analysis</b></td><td>Each item → curriculum code, cognitive level, and the specific skill it targets.</td><td><code>analyse</code></td></tr>
   </table>
 
-  <div class="privacy-note">🔒 <b>Privacy:</b> browser uploads stay on your device. Student
-  names appear only in your own local views and are never sent anywhere or included in the
-  Power BI shared export. Codes in the sample curricula are representative — verify against the
-  official VCAA/ACARA source before formal reporting.</div>
+  <div class="privacy-note">🔒 <b>Privacy:</b> the dashboard and readiness boxes run entirely on
+  your device. The <i>AI cloud</i> features (reformat &amp; marking) are opt-in and send your
+  files directly to the AI provider you chose — Claude or your workplace's Copilot endpoint —
+  using your own key, with no Markable server in between. Codes in the sample curricula are
+  representative — verify against the official VCAA/ACARA source before formal reporting.</div>
 </div>
 """
 
@@ -374,11 +375,19 @@ table.plain td{border-bottom:1px solid var(--grid);padding:6px 10px 6px 0}
 .beta-chip{display:inline-block;vertical-align:middle;margin-left:8px;font-size:11px;font-weight:600;
   letter-spacing:.06em;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);
   border-radius:99px;padding:2px 10px}
-.keyrow{display:flex;justify-content:space-between;gap:18px;align-items:center;flex-wrap:wrap;
-  background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin:14px 0 18px}
+.provider-card{margin:14px 0 18px}
+.providers{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;margin-bottom:12px}
+.provider{display:flex;gap:12px;align-items:center;text-align:left;cursor:pointer;font:inherit;
+  background:var(--page);border:2px solid var(--border);border-radius:12px;padding:12px 14px;color:var(--ink)}
+.provider svg{width:34px;height:34px;flex:0 0 auto;color:var(--muted)}
+.provider div{display:flex;flex-direction:column;gap:2px}
+.provider span{color:var(--ink-2);font-size:12px}
+.provider.on{border-color:var(--accent);background:var(--accent-wash)}
+.provider.on svg{color:var(--accent)}
 .keyfield{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .keyfield input{padding:8px 10px;border-radius:8px;border:1px solid var(--border);
   background:var(--page);color:var(--ink);font:inherit;width:260px}
+.nav-item.sub{padding-left:26px;font-size:12.5px;opacity:.85}
 .aim-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
 .aim-step{position:relative}
 .aim-step .stepnum{position:absolute;top:10px;left:12px;width:24px;height:24px;border-radius:50%;
@@ -588,21 +597,37 @@ def render_studio(embedded: dict | None = None) -> str:
     aimark = """
 <div class="view" id="view-aimark">
   <h1>🤖 AI marking studio <span class="beta-chip">cloud</span></h1>
-  <p class="lead">Upload your test, your answer key, and the scanned scripts — Claude marks them
-  in the cloud and returns per-question marks, evidence and feedback. Uncertain items are
-  flagged for your review; you stay the marker of record.</p>
+  <p class="lead">Upload your test, your answer key, and the scanned scripts — your chosen AI
+  marks them in the cloud and returns per-question marks, evidence and feedback. Uncertain
+  items are flagged for your review; you stay the marker of record.</p>
 
-  <div class="keyrow card">
-    <div>
-      <h3 style="margin:0 0 4px">Your Anthropic API key</h3>
-      <p class="hint" style="margin:0">Needed for the cloud steps (upgrade &amp; marking). Stored only in this
-      browser, sent only to Anthropic. Get one at console.anthropic.com.</p>
+  <div class="card provider-card">
+    <h3 style="margin:0 0 10px">Choose your AI &amp; add its key <span class="hint">— one key powers everything here: the test upgrade and the marking.</span></h3>
+    <div class="providers">
+      <button class="provider" id="prov-claude" onclick="setProvider('claude')">
+        <svg viewBox="0 0 48 48" aria-hidden="true"><g fill="currentColor">
+          <path d="M24 4l3.2 12.6L40 20l-12.8 3.4L24 36l-3.2-12.6L8 20l12.8-3.4z"/>
+          <circle cx="38" cy="9" r="3"/><circle cx="10" cy="38" r="3"/></g></svg>
+        <div><b>Claude</b><span>Anthropic · recommended — reads scans &amp; PDFs directly from this page</span></div>
+      </button>
+      <button class="provider" id="prov-copilot" onclick="setProvider('copilot')">
+        <svg viewBox="0 0 48 48" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round">
+          <path d="M14 30a10 10 0 1 1 10-10"/><path d="M34 18a10 10 0 1 1-10 10"/></g></svg>
+        <div><b>Copilot / Azure OpenAI</b><span>your workplace's endpoint — images only; some corporate endpoints block browser calls (ask IT)</span></div>
+      </button>
     </div>
-    <div class="keyfield">
-      <input id="api-key" type="password" placeholder="sk-ant-…" autocomplete="off">
+    <div class="keyfield" id="keys-claude">
+      <input id="api-key" type="password" placeholder="sk-ant-…  (console.anthropic.com)" autocomplete="off">
       <button class="btn ghost" onclick="saveKey()">Save</button>
       <span class="status" id="key-status"></span>
     </div>
+    <div class="keyfield" id="keys-copilot" style="display:none">
+      <input id="cp-endpoint" type="text" placeholder="paste your chat-completions endpoint URL (Azure OpenAI / gateway)" autocomplete="off" style="width:420px;max-width:100%">
+      <input id="cp-key" type="password" placeholder="API key" autocomplete="off">
+      <button class="btn ghost" onclick="saveKey()">Save</button>
+      <span class="status" id="key-status2"></span>
+    </div>
+    <p class="hint" style="margin:8px 0 0">Keys are stored only in this browser and sent only to the provider you picked.</p>
   </div>
 
   <div class="aim-grid">
@@ -633,17 +658,14 @@ def render_studio(embedded: dict | None = None) -> str:
   </div>
 
   <div class="aim-actions">
-    <button class="btn" id="aim-mark-btn" onclick="markScans()">🤖 Mark the scripts with Claude</button>
-    <button class="btn ghost" onclick="upgradeFromAim()">🪄 Only upgrade the test (no scans needed)</button>
+    <button class="btn" id="aim-mark-btn" onclick="markScans()">🤖 Mark the scripts</button>
+    <button class="btn ghost" onclick="upgradeFromAim()">🪄 Only reformat the test (no scans needed)</button>
   </div>
 
   <div class="result" id="aim-result"></div>
 
-  <div class="privacy-note">🔒 <b>Privacy:</b> files go directly from this browser to Anthropic's
-  API over HTTPS — there is no Markable server. Cover or crop student names before scanning and
-  use student IDs where possible; for fully pseudonymised marking (random aliases, local
-  re-identification key) use the CLI pipeline: <code>markable scan</code> →
-  <code>markable mark</code>.</div>
+  <div class="privacy-note">🔒 Files go directly from this browser to the AI provider you chose,
+  over HTTPS — there is no Markable server in between.</div>
 </div>
 """
 
@@ -685,6 +707,9 @@ def render_studio(embedded: dict | None = None) -> str:
     <button class="nav-item" onclick="show('home');document.getElementById('drop-doc-input').click()">📝 Test → AI-marking prep</button>
     <h4>AI cloud</h4>
     <button class="nav-item" data-view="aimark" onclick="show('aimark',this)">🤖 AI marking studio</button>
+    <button class="nav-item sub" onclick="show('aimark');scrollToEl('drop-aim-scans')">↳ Mark scanned scripts</button>
+    <button class="nav-item sub" onclick="show('aimark');scrollToEl('drop-aim-test')">↳ Reformat a test</button>
+    <button class="nav-item sub" onclick="show('aimark');scrollToEl('prov-claude')">↳ Claude / Copilot setup</button>
     <h4>Reports</h4>
     {_report_nav()}
     <div class="nav-foot">{nav_foot}</div>
@@ -1208,8 +1233,9 @@ function renderReadiness(name,rep){
     '<p style="margin:0;color:var(--ink-2);font-size:13px">Run <code>markable ingest</code> then <code>markable build</code> to auto-apply the fixes below and produce a scan-ready paper + marking key.</p></div></div>'+
     '<ul style="margin:0;padding-left:2px;list-style:none;line-height:1.9">'+items+'</ul>'+
     '<div class="aim-actions" style="margin:14px 0 4px">'+
-    '<button class="btn" onclick="upgradeTest(\'doc-result\')">🪄 Upgrade this test with AI</button>'+
-    '<span class="hint" style="align-self:center">Sends the test + Markable\'s upgrade instructions to Claude; you get back a restructured, AI-marking-ready version with a change log.</span></div>'+
+    '<button class="btn" onclick="upgradeTest(\'doc-result\')">🪄 Reformat with '+(PROVIDER==='copilot'?'Copilot':'Claude')+'</button>'+
+    '<button class="btn ghost" onclick="show(\'aimark\');scrollToEl(\'prov-claude\')">Switch AI (Claude / Copilot)</button>'+
+    '<span class="hint" style="align-self:center">Sends the test + Markable\'s upgrade instructions to your chosen AI; you get back a restructured, AI-marking-ready version with a change log.</span></div>'+
     '<p class="foot">This readiness check runs locally. The build step (unique IDs, answer zones, QR codes, a structured key) is what makes AI marking reliable and auditable.</p></div>';
 }
 
@@ -1249,35 +1275,93 @@ wireDrop('drop-doc','drop-doc-input',async file=>{
   }catch(err){st.className='status err';st.textContent='Could not analyse that file: '+err.message}
 });
 
-/* ================= AI cloud: key, transport, upgrade, marking ================= */
+/* ================= AI cloud: provider, keys, transport, upgrade, marking ================= */
 function scrollToEl(id){const el=$(id);if(el)el.scrollIntoView({behavior:'smooth',block:'center'})}
-const KEY_STORE='markable_api_key';
-function getKey(){return (localStorage.getItem(KEY_STORE)||'').trim()}
-function saveKey(){
-  localStorage.setItem(KEY_STORE,$('api-key').value.trim());
-  const s=$('key-status');s.className='status';s.textContent=getKey()?'✓ Saved in this browser.':'Cleared.';
+const KEY_STORE='markable_api_key';           // Anthropic key
+const CP_EP_STORE='markable_cp_endpoint';     // Copilot / Azure OpenAI endpoint + key
+const CP_KEY_STORE='markable_cp_key';
+const PROV_STORE='markable_provider';
+let PROVIDER=localStorage.getItem(PROV_STORE)||'claude';
+function setProvider(p){
+  PROVIDER=p;localStorage.setItem(PROV_STORE,p);
+  const c=$('prov-claude'),o=$('prov-copilot');
+  if(c){c.classList.toggle('on',p==='claude');o.classList.toggle('on',p==='copilot');
+    $('keys-claude').style.display=p==='claude'?'flex':'none';
+    $('keys-copilot').style.display=p==='copilot'?'flex':'none';}
 }
+function getKey(){return (localStorage.getItem(KEY_STORE)||'').trim()}
+function getCp(){return {endpoint:(localStorage.getItem(CP_EP_STORE)||'').trim(),
+  key:(localStorage.getItem(CP_KEY_STORE)||'').trim()}}
+function saveKey(){
+  if(PROVIDER==='claude'){
+    localStorage.setItem(KEY_STORE,$('api-key').value.trim());
+    const s=$('key-status');s.className='status';s.textContent=getKey()?'✓ Saved in this browser.':'Cleared.';
+  }else{
+    localStorage.setItem(CP_EP_STORE,$('cp-endpoint').value.trim());
+    localStorage.setItem(CP_KEY_STORE,$('cp-key').value.trim());
+    const s=$('key-status2');s.className='status';
+    s.textContent=(getCp().endpoint&&getCp().key)?'✓ Saved in this browser.':'Cleared.';
+  }
+}
+function haveCreds(){return PROVIDER==='claude'?!!getKey():!!(getCp().endpoint&&getCp().key)}
 function needKey(){
-  if(getKey())return true;
-  show('aimark');scrollToEl('api-key');$('api-key').focus();
-  const s=$('key-status');s.className='status err';
-  s.textContent='Add your Anthropic API key first — the cloud steps need it.';
+  if(haveCreds())return true;
+  show('aimark');scrollToEl('prov-claude');
+  const s=$(PROVIDER==='claude'?'key-status':'key-status2');s.className='status err';
+  s.textContent=PROVIDER==='claude'
+    ?'Add your Anthropic API key first — the cloud steps need it.'
+    :'Add your Copilot/Azure OpenAI endpoint URL and key first.';
   return false;
 }
-async function callClaude(body){
+/* ---- transport: one entry point, two providers ---- */
+async function callAI(opts){  // {system, schema, content(anthropic blocks)}
+  if(PROVIDER==='claude')return callClaude(opts);
+  return callOpenAI(opts);
+}
+async function callClaude(opts){
   // Direct browser → Anthropic; the CORS opt-in header acknowledges the key
   // lives client-side (it is the teacher's own key, stored only locally).
   const res=await fetch('https://api.anthropic.com/v1/messages',{
     method:'POST',
     headers:{'content-type':'application/json','x-api-key':getKey(),
       'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-    body:JSON.stringify(body)});
+    body:JSON.stringify({model:'claude-opus-4-8',max_tokens:16000,thinking:{type:'adaptive'},
+      system:[{type:'text',text:opts.system,cache_control:{type:'ephemeral'}}],
+      output_config:{format:{type:'json_schema',schema:opts.schema}},
+      messages:[{role:'user',content:opts.content}]})});
   const data=await res.json().catch(()=>({}));
   if(!res.ok){throw new Error((data.error&&data.error.message)||('API error '+res.status))}
   if(data.stop_reason==='refusal')throw new Error('the model declined to process this document');
   const block=(data.content||[]).find(b=>b.type==='text');
   if(!block)throw new Error('no text in the response');
   return JSON.parse(block.text);
+}
+async function callOpenAI(opts){
+  // OpenAI-compatible chat-completions endpoint (Azure OpenAI / a workplace
+  // Copilot gateway). Anthropic content blocks are converted; JSON is enforced
+  // via json_object mode + the schema inlined in the prompt.
+  const cp=getCp();
+  const content=[];
+  for(const b of opts.content){
+    if(b.type==='text')content.push({type:'text',text:b.text});
+    else if(b.type==='image')content.push({type:'image_url',
+      image_url:{url:'data:'+b.source.media_type+';base64,'+b.source.data}});
+    else if(b.type==='document')
+      throw new Error('PDF scans need Claude — with Copilot/Azure OpenAI, upload scans as images (PNG/JPG), or switch provider.');
+  }
+  const headers={'content-type':'application/json'};
+  if(/azure|\bapi-key\b/i.test(cp.endpoint))headers['api-key']=cp.key;
+  else headers['authorization']='Bearer '+cp.key;
+  const res=await fetch(cp.endpoint,{method:'POST',headers,body:JSON.stringify({
+    messages:[{role:'system',content:opts.system+'\n\nRespond ONLY with a JSON object matching this schema:\n'+JSON.stringify(opts.schema)},
+      {role:'user',content}],
+    response_format:{type:'json_object'},max_tokens:8000})});
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok){throw new Error((data.error&&data.error.message)||('endpoint error '+res.status+
+    ' — if this is a CORS/network error, your workplace endpoint may not allow browser calls; ask IT or use Claude'))}
+  const text=data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content;
+  if(!text)throw new Error('no content in the response');
+  return JSON.parse(text);
 }
 function busy(el,msg){el.innerHTML='<div class="card"><p><span class="spin"></span>'+esc(msg)+
   ' <span class="muted">(can take a minute — Claude is thinking)</span></p></div>';el.classList.add('active')}
@@ -1292,16 +1376,14 @@ function dlButton(label,content,fname,mime){
 
 /* ---------- upgrade: test + instruction pack → improved test ---------- */
 let LAST_DOC=null;
+function provName(){return PROVIDER==='copilot'?'Copilot':'Claude'}
 async function upgradeTest(resultId){
   if(!LAST_DOC){show('home');scrollToEl('drop-doc');return}
   if(!needKey())return;
-  const el=$(resultId);busy(el,'Upgrading “'+LAST_DOC.name+'” for AI marking…');
+  const el=$(resultId);busy(el,'Reformatting “'+LAST_DOC.name+'” with '+provName()+'…');
   try{
-    const out=await callClaude({
-      model:'claude-opus-4-8',max_tokens:16000,thinking:{type:'adaptive'},
-      system:[{type:'text',text:IMPROVE_PACK,cache_control:{type:'ephemeral'}}],
-      output_config:{format:{type:'json_schema',schema:IMPROVE_SCHEMA}},
-      messages:[{role:'user',content:'Upgrade this draft test:\n\n'+LAST_DOC.text}]});
+    const out=await callAI({system:IMPROVE_PACK,schema:IMPROVE_SCHEMA,
+      content:[{type:'text',text:'Upgrade this draft test:\n\n'+LAST_DOC.text}]});
     const changes=(out.changes||[]).map(c=>'<li><b>'+esc(c.question_id)+'</b> — '+esc(c.change)+
       ' <span class="muted">('+esc(c.reason)+')</span></li>').join('');
     const fname=LAST_DOC.name.replace(/\.[^.]+$/,'')+'.improved.md';
@@ -1388,19 +1470,14 @@ async function markScans(){
     el.innerHTML='<div class="card"><p class="status err" style="display:block">Add all three: the test (1), the answer key (2) and at least one scanned script (3).</p></div>';
     el.classList.add('active');return}
   if(!needKey())return;
-  const sys=[{type:'text',
-    text:MARK_SYS_PREFIX+'=== THE TEST ===\n'+AIM.test.text+'\n\n=== THE ANSWER KEY ===\n'+AIM.key.text,
-    cache_control:{type:'ephemeral'}}];  // shared across the cohort — cached
+  const sys=MARK_SYS_PREFIX+'=== THE TEST ===\n'+AIM.test.text+'\n\n=== THE ANSWER KEY ===\n'+AIM.key.text;
   const results=[];
   for(let i=0;i<AIM.scans.length;i++){
     const f=AIM.scans[i];
-    busy(el,'Marking script '+(i+1)+' of '+AIM.scans.length+' — '+f.name+' …');
+    busy(el,'Marking script '+(i+1)+' of '+AIM.scans.length+' with '+provName()+' — '+f.name+' …');
     try{
-      const out=await callClaude({
-        model:'claude-opus-4-8',max_tokens:16000,thinking:{type:'adaptive'},system:sys,
-        output_config:{format:{type:'json_schema',schema:MARK_SCHEMA}},
-        messages:[{role:'user',content:[await fileBlock(f),
-          {type:'text',text:'Mark this script. Filename: '+f.name}]}]});
+      const out=await callAI({system:sys,schema:MARK_SCHEMA,
+        content:[await fileBlock(f),{type:'text',text:'Mark this script. Filename: '+f.name}]});
       out._file=f.name;results.push(out);
     }catch(err){results.push({student_label:f.name,_file:f.name,_error:err.message,judgements:[]})}
   }
@@ -1434,5 +1511,10 @@ function renderMarks(el,results){
     '<p class="foot">AI-proposed marks — items flagged “review” need your judgement. You remain the marker of record.</p>';
   el.classList.add('active');el.scrollIntoView({behavior:'smooth'});
 }
-(function(){const k=$('api-key');if(k&&getKey())k.value=getKey()})();
+(function(){
+  const k=$('api-key');if(k&&getKey())k.value=getKey();
+  const ep=$('cp-endpoint'),ck=$('cp-key');
+  if(ep)ep.value=getCp().endpoint; if(ck)ck.value=getCp().key;
+  setProvider(PROVIDER);
+})();
 """

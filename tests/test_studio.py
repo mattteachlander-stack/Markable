@@ -71,6 +71,11 @@ def test_ai_cloud_features_present():
         assert el in html, el
     # scans can be images or PDFs (PDF → document block)
     assert "application/pdf" in html
+    # provider choice: Claude or the workplace's Copilot/Azure OpenAI endpoint,
+    # with logo buttons, per-provider credentials, and an OpenAI-compatible transport
+    for el in ("prov-claude", "prov-copilot", "setProvider", "cp-endpoint",
+               "callOpenAI", "image_url", "json_object"):
+        assert el in html, el
 
 
 def test_in_browser_dashboard_has_gradebook_parity():

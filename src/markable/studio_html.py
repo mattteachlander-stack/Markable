@@ -128,13 +128,16 @@ _TOOLS = [
      "Upload my results", "show('home');scrollToEl('drop-xlsx');$('drop-xlsx-input').click()"),
 ]
 
-# (nav-id, label, kind, target). kind: 'view' (internal), 'file' (iframe sibling).
+# (nav-id, label, target). Files open in an iframe when they sit beside the hub
+# (or are baked in via --embed).
 _REPORTS = [
     ("sacvce", "VCE — SAC results", "vce_sac_dashboard.html"),
     ("sac710", "Years 7–10 — results", "y7-10_dashboard.html"),
     ("dashboard", "Assessment dashboard", "dashboard.html"),
     ("curriculum", "Curriculum report", "curriculum_report.html"),
     ("analysis", "Test analysis", "test_analysis.html"),
+    ("review", "Review queue", "review.html"),
+    ("feedback", "Feedback slips", "feedback_slips.html"),
 ]
 
 

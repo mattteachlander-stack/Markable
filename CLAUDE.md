@@ -38,6 +38,7 @@ markable build  <package> → paper.pdf + key.yaml + manifest.json     ✓
 markable scan   <package> <pdfs|imgs> → scripts/<sid>/<qid>.png + scan_report.json  ✓
 markable mark   <package> → marks.json + review.html (needs `ai` extra + API key)  ✓
 markable report <package> → results/totals/item_analysis.csv + summary.md + export/ ✓
+markable report <package> --feedback → feedback_slips.html (printable, per student) ✓
 markable curriculum import <pack.yaml> --id <id> | list                    ✓
 markable tag    <package> --curriculum <id> [--map tags.yaml]              ✓
 markable report <package> --curriculum <id> → curriculum_report.html + CSVs ✓

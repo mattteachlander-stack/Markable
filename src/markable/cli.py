@@ -238,8 +238,27 @@ def report(
     package: Path = typer.Argument(..., exists=True, help="Assessment package."),
     curriculum: Optional[str] = typer.Option(None, help="[Phase 6] Standards-referenced reporting."),
     dashboard: bool = typer.Option(False, help="[Phase 8] Emit the self-contained HTML dashboard."),
+    feedback: bool = typer.Option(False, "--feedback", help="Emit printable per-student feedback slips."),
 ) -> None:
     """Scores, item analysis, teacher summary, star-schema export."""
+    if feedback:
+        from .feedback_html import run_feedback
+
+        try:
+            result = run_feedback(package)
+        except FileNotFoundError as exc:
+            console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(code=1)
+        console.print(
+            f"[green]✓[/green] {result['slips']} feedback slip(s) → [bold]{result['path']}[/bold] "
+            "(one printable page per student)"
+        )
+        if not result["named"]:
+            console.print(
+                "  [dim]Slips show student IDs — add class_list.csv (student_id,name) to the "
+                "package and re-run for named slips (names stay local).[/dim]"
+            )
+        return
     if dashboard:
         from .dashboard_html import run_dashboard
 

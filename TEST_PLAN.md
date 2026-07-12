@@ -2,7 +2,7 @@
 
 ## Current automated coverage (all offline, no API key)
 
-**Python unit/fixture tests — `uv run pytest` (96 tests, incl. the node-bridge)**
+**Python unit/fixture tests — `uv run pytest` (97 tests, incl. the node-bridge)**
 - Ingest/question detection & marks parsing: `test_ingest.py`
 - Build determinism, manifest/zone geometry: `test_build.py`, `test_qr.py`
 - Scan round trip (rasterise → deskew → QR → crop, incl. 180° noisy scan):
@@ -20,7 +20,7 @@
   `test_rubric.py`
 - Hub template contracts incl. **all P0 guards** (leak detection, consent,
   credential policy, validation, identity warnings, labelling, a11y hooks):
-  `test_studio.py` (16 tests)
+  `test_studio.py` (17 tests, incl. the live results/feedback views contract)
 
 **Browser E2E — Playwright scripts (scratchpad `pw_*.py`, run against the
 built hub in Chromium)**
@@ -30,6 +30,10 @@ built hub in Chromium)**
   malformed LLM JSON (marks>max, negative, confidence 1.7, duplicate QID,
   blank transcription) clamped + flagged; export gated until review complete;
   audit CSV columns; duplicate-ID warning banner; mobile hamburger.
+- `pw_reports.py`: live results/feedback section — VCE + 7–10 nav entries,
+  empty states, labelled demo data (chip clears on real upload), real workbook
+  → results view, slips preview/class filter/printable download, CLI-file
+  hint bar.
 - `pw_ai.py`, `pw_opt.py`, `pw_rubric.py`, `pw_prompt.py`, `pw_review.py`,
   `pw_test.py`: feature E2E for upgrade, optimiser (before/after, docx/pdf
   magic-byte checks), rubric editor (edits → valid Key model), prompt path,

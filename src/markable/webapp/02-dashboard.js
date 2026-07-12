@@ -357,7 +357,8 @@ function renderDashboard(sacs,packId,term){
   return rampCss()+warnBanner+toolbar+'<div class="subtabs">'+tabs.join('')+'</div>'+bodies;
 }
 function mountDash(){
-  $('xlsx-result').innerHTML='<h2 class="section" id="dash-title">Dashboard — '+esc(LAST_TITLE)+'</h2>'+
+  const demoChip=(typeof IS_DEMO!=='undefined'&&IS_DEMO)?' <span class="mode-chip demo">DEMO DATA — fictional students</span>':'';
+  $('xlsx-result').innerHTML='<h2 class="section" id="dash-title">Dashboard — '+esc(LAST_TITLE)+demoChip+'</h2>'+
     renderDashboard(LAST_SACS,LAST_PACK,LAST_TERM);
   if(classList(LAST_SACS).length)renderClassQ();
   renderSpot();
@@ -371,6 +372,7 @@ function downloadDash(){
     'var RAMPS='+JSON.stringify(RAMPS)+';\nvar PACKS='+JSON.stringify(PACKS)+';\n'+
     'var STUDIO_CSS='+JSON.stringify(STUDIO_CSS)+';\n'+
     'var SELCSS='+JSON.stringify(SELCSS)+';\n'+
+    'var IS_DEMO='+JSON.stringify(typeof IS_DEMO!=='undefined'&&IS_DEMO)+';\n'+
     'var LAST_SACS='+JSON.stringify(LAST_SACS)+';\nvar LAST_TITLE='+JSON.stringify(LAST_TITLE)+';\n'+
     'var LAST_PACK='+JSON.stringify(LAST_PACK)+';\nvar LAST_TERM='+JSON.stringify(LAST_TERM)+';\n'+
     'function $(id){return document.getElementById(id)}\n'+

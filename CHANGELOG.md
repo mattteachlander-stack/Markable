@@ -1,5 +1,29 @@
 # CHANGELOG.md
 
+## Live results & feedback (fixes broken report links in the standalone hub)
+
+- **Root cause fixed**: the "VCE — SAC results", "Years 7–10 — results" and
+  "Feedback slips" menu items (and both landing-page demo buttons) pointed at
+  sibling files that don't exist next to a standalone `markable.html`, so they
+  showed a blank panel. All three are now rendered **live in-browser** from
+  the uploaded workbook — the single file needs nothing beside it.
+- **Results views**: one dashboard engine, two entry points that switch
+  terminology (VCE SACs vs Years 7–10 assessments); a dedicated view with an
+  upload button, expected-layout help, and an empty state instead of a blank
+  frame. Uploading from anywhere lands you in this view.
+- **Demo data**: both "View demo" buttons load a deterministic, clearly
+  labelled fictional cohort (DEMO DATA chip on the dashboard and in slips);
+  the label clears the moment real data is uploaded.
+- **Feedback slips in-browser**: printable per-student slips built from the
+  workbook — totals vs class average, question-by-question marks, strengths /
+  focus-next lines, class filter, live preview, and a standalone printable
+  download (one page per student). Names stay on-device; the CLI
+  `report --feedback` path (with AI feedback text) is signposted.
+- **Honest report-file links**: the remaining CLI-generated reports
+  (dashboard, curriculum, analysis, review queue) show a hint bar naming the
+  file they need and pointing at the live tools, so a missing file is never a
+  silent blank panel.
+
 ## Council P1 pass (this release, follows the P0 pass below)
 
 - **Modular JS source (P1-1)**: the browser engine now lives in

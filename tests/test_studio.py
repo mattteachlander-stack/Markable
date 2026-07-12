@@ -30,8 +30,8 @@ def test_has_nav_landing_and_tools():
     for title in ("Ingest &amp; Build", "Scan", "Mark", "Report &amp; Dashboard",
                   "Curriculum Report", "Test Analysis", "SAC Gradebook"):
         assert title in html, title
-    # report links to the sibling output files
-    for f in ("dashboard.html", "sac_dashboard.html", "curriculum_report.html", "test_analysis.html"):
+    # report links to the sibling CLI output files (results/feedback are live in-browser)
+    for f in ("dashboard.html", "curriculum_report.html", "test_analysis.html", "review.html"):
         assert f in html, f
 
 
@@ -183,6 +183,31 @@ def test_p1_pilot_quality_features():
                "workspaces", "Analyse locally", "Mark &amp; review",
                "built 20"):                             # version stamp
         assert el in html, el
+
+
+def test_live_results_and_feedback_views():
+    """The results dashboards (VCE SACs / Years 7-10) and feedback slips render
+    live in-browser — the standalone hub must not depend on sibling report
+    files for them, and the demo data must be labelled as fictional."""
+    html = render_studio()
+    # live views + entry points
+    for el in ('id="view-results"', 'id="view-feedback"', 'id="results-empty"',
+               'id="fb-body"', "showResults('SAC'", "showResults('Assessment'",
+               "showFeedback(", "loadDemo(", "demoSacs", "renderFeedback",
+               "downloadSlips", "slipHtml"):
+        assert el in html, el
+    # demo data is honest: chip + fictional label, deterministic generator
+    assert "DEMO DATA" in html and "fictional students" in html
+    assert "demoRand" in html
+    # the old sibling-file targets are gone from the report links
+    for stale in ("vce_sac_dashboard.html", "y7-10_dashboard.html",
+                  "feedback_slips.html"):
+        assert stale not in html, stale
+    # remaining CLI file links carry the honest hint bar
+    assert "frame-hint" in html
+    # slips privacy + print contract
+    assert "Generated locally by Markable" in html
+    assert "page-break-after" in html
 
 
 def test_js_source_is_modular():

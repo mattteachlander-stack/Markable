@@ -77,12 +77,10 @@ wireDrop('drop-xlsx','drop-xlsx-input',async file=>{
     const sheets=await parseXlsx(await file.arrayBuffer());
     const sacs=sheets.map(detectSac).filter(Boolean);
     if(!sacs.length)throw new Error('No results grid found. Expected a sheet with a "Surname" header row and "/N" mark columns.');
-    LAST_SACS=sacs; LAST_TITLE=file.name; LAST_PACK=''; LAST_TERM='SAC';
-    mountDash();
-    $('xlsx-result').classList.add('active');
+    LAST_SACS=sacs; LAST_TITLE=file.name; LAST_PACK=''; IS_DEMO=false;
+    showResults(LAST_TERM);
     const hasCls=classList(sacs).length;
     st.textContent='✓ '+sacs.length+' assessment(s), '+sacs[0].students.length+' students'+(hasCls?', '+classList(sacs).length+' classes':'')+'.';
-    $('xlsx-result').scrollIntoView({behavior:'smooth'});
   }catch(err){st.className='status err';st.textContent='Could not read that file: '+err.message}
 });
 wireDrop('drop-doc','drop-doc-input',async file=>{

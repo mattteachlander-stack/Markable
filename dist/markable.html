@@ -1,241 +1,8 @@
-"""`markable studio` — the single-file Markable hub / landing page.
-
-One self-contained HTML file (no libraries, no network) that:
-
-- Presents Markable's tools as cards with descriptions + how-to-use instructions,
-  over an inline-SVG hero (data-analysis + AI-marking motif).
-- Has a left-hand navigation panel that links every sub-tool. Report files that
-  Markable generates (dashboard.html, sac_dashboard.html, curriculum_report.html,
-  test_analysis.html) open in the main panel via an iframe when they sit beside
-  this file.
-- Provides two working, **client-side** upload boxes for staff who have no dev
-  tools installed:
-    1. Results spreadsheet (.xlsx) → an instant multi-SAC dashboard, parsed and
-       rendered entirely in the browser (ZIP inflate via the built-in
-       DecompressionStream, then a JS port of the gradebook renderer).
-    2. A test/assessment (.docx/.md/.txt) → an "AI-marking readiness" analysis:
-       Markable detects questions, mark allocations and structure, and reports
-       what to fix so the paper can be marked reliably by AI.
-
-The upload logic is deliberately dependency-free: modern browsers ship
-`DecompressionStream('deflate-raw')`, which is all that's needed to read the
-DEFLATE members inside an .xlsx/.docx ZIP.
-"""
-
-from __future__ import annotations
-
-# The electric-green ramps, mirrored from dashboard_html so the in-browser
-# renderer matches the CLI output exactly.
-from .dashboard_html import _GREEN_DARK, _GREEN_LIGHT
-from .standards_html import _BINS as _HEAT
-
-_HERO_SVG = """
-<svg viewBox="0 0 480 220" role="img" aria-label="Markable" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="g" x1="0" y1="1" x2="0" y2="0">
-      <stop offset="0" stop-color="#123a7a"/><stop offset="1" stop-color="#2f80ed"/>
-    </linearGradient>
-    <linearGradient id="gd" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#4b93ff"/><stop offset="1" stop-color="#1e63d0"/>
-    </linearGradient>
-  </defs>
-  <!-- data bars -->
-  <g>
-    <rect x="16"  y="150" width="26" height="54"  rx="4" fill="url(#g)"/>
-    <rect x="52"  y="110" width="26" height="94"  rx="4" fill="url(#g)"/>
-    <rect x="88"  y="72"  width="26" height="132" rx="4" fill="url(#g)"/>
-    <rect x="124" y="128" width="26" height="76"  rx="4" fill="url(#g)"/>
-    <rect x="160" y="40"  width="26" height="164" rx="4" fill="url(#g)"/>
-    <polyline points="29,150 65,110 101,72 137,128 173,40"
-      fill="none" stroke="#0b0b0b" stroke-opacity=".28" stroke-width="2.5"
-      stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="173" cy="40" r="6" fill="#0b0b0b" fill-opacity=".28"/>
-  </g>
-  <!-- AI marking node graph + tick -->
-  <g transform="translate(250,26)" stroke="url(#gd)" stroke-width="2.5" fill="none">
-    <line x1="20" y1="40" x2="90" y2="18"/><line x1="20" y1="40" x2="90" y2="70"/>
-    <line x1="20" y1="120" x2="90" y2="70"/><line x1="20" y1="120" x2="90" y2="140"/>
-    <line x1="90" y1="18" x2="170" y2="80"/><line x1="90" y1="70" x2="170" y2="80"/>
-    <line x1="90" y1="140" x2="170" y2="80"/>
-  </g>
-  <g transform="translate(250,26)" fill="url(#gd)">
-    <circle cx="20" cy="40" r="8"/><circle cx="20" cy="120" r="8"/>
-    <circle cx="90" cy="18" r="8"/><circle cx="90" cy="70" r="8"/><circle cx="90" cy="140" r="8"/>
-    <circle cx="170" cy="80" r="15"/>
-  </g>
-  <path transform="translate(250,26)" d="M163 80 l5 6 l10 -13" stroke="#ffffff"
-    stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>
-"""
-
-# Tool cards: (icon, title, blurb, how-to, button-label, button-onclick).
-# Every card carries a button that jumps straight to the tool that does the job.
-_TOOLS = [
-    ("📝", "Ingest &amp; Build <span class=\"mode-chip cli\">CLI</span>",
-     "Turn a messy Word/markdown draft into a scan-friendly, machine-markable paper "
-     "with unique question IDs, answer zones, a per-page QR code and a structured "
-     "marking key — the prep that makes AI marking reliable.",
-     "CLI: <code>markable ingest draft.md</code> then <code>markable build packages/my-test</code>. "
-     "Or drop a draft in the <b>AI-marking readiness</b> box below to see what needs fixing first.",
-     "Prep my test", "show('home');scrollToEl('drop-doc');$('drop-doc-input').click()"),
-    ("📐", "Rubric Builder",
-     "AI-drafts the complete marking key from your test: criteria with marks, accept/reject "
-     "lists, MCQ answers with distractor notes, and banded rubrics for extended responses — "
-     "editable on the page, exported as key.yaml or a printable rubric.",
-     "Open the <b>Rubric builder</b> (left menu, under AI cloud). CLI twin: "
-     "<code>markable rubric draft.md</code> → <b>key.yaml</b>.",
-     "Build my rubric", "show('rubric')"),
-    ("✨", "Assessment Optimiser",
-     "Optimise any assessment for AI marking: unique IDs, explicit marks, typed items and "
-     "tightened wording — your questions and difficulty preserved, every change logged, "
-     "with a before/after readiness score.",
-     "Open the <b>Assessment optimiser</b> (left menu, under AI cloud), drop your test in, "
-     "and download the optimised version. CLI twin: <code>markable improve draft.docx</code>.",
-     "Optimise my assessment", "show('optimise')"),
-    ("🖨️", "Scan <span class=\"mode-chip cli\">CLI</span>",
-     "Read scanned scripts back in any order or orientation: deskews to the page's "
-     "registration marks, matches each page by QR, and crops every answer zone.",
-     "CLI: <code>markable scan packages/my-test scans/*.pdf --id-map ids.yaml</code>.",
-     "Upload scans → AI marking", "show('aimark')"),
-    ("🤖", "Mark",
-     "AI marks per question across the whole cohort against your key, returning marks, "
-     "evidence and feedback — anything uncertain goes to a human review queue.",
-     "CLI: <code>markable mark packages/my-test --batch</code> (needs an API key). "
-     "Nothing below the confidence threshold is auto-finalised.",
-     "Mark with Claude", "show('aimark')"),
-    ("📊", "Report &amp; Dashboard",
-     "Scores, item analysis (facility, discrimination, distractors) and a single-file "
-     "dashboard: cohort KPIs, score distribution and a question × quartile matrix.",
-     "CLI: <code>markable report packages/my-test --dashboard</code> → <b>dashboard.html</b>, "
-     "then open it from the menu on the left.",
-     "Build a dashboard", "show('home');scrollToEl('drop-xlsx');$('drop-xlsx-input').click()"),
-    ("🎯", "Curriculum Report",
-     "Standards-referenced attainment against a curriculum: a green→red outcome "
-     "heatmap per student, strand rollups, misconceptions and a coverage audit.",
-     "CLI: <code>markable tag …</code> then <code>markable report … --curriculum vc2-science</code> "
-     "→ <b>curriculum_report.html</b>.",
-     "View curriculum report", "openReportByFile('curriculum_report.html')"),
-    ("🔎", "Test Analysis",
-     "Point Markable at a test and get a per-item map: marks, strand / concept area, "
-     "VCAA/ACARA code, cognitive level (Bloom's) and the specific skill each item targets.",
-     "CLI: <code>markable analyse draft.md --curriculum vc2-science</code> → <b>test_analysis.html</b>.",
-     "View test analysis", "openReportByFile('test_analysis.html')"),
-    ("📈", "SAC Gradebook",
-     "Already have marks in a spreadsheet? Upload a per-SAC results workbook and get an "
-     "instant multi-tab dashboard — overall, per-SAC question analysis, and per-student "
-     "skills mapped to the study design.",
-     "Use the <b>Results spreadsheet</b> upload box below — it runs entirely in your browser.",
-     "Upload my results", "show('home');scrollToEl('drop-xlsx');$('drop-xlsx-input').click()"),
-]
-
-# (nav-id, label, target). Files open in an iframe when they sit beside the hub
-# (or are baked in via --embed).
-_REPORTS = [
-    ("sacvce", "VCE — SAC results", "vce_sac_dashboard.html"),
-    ("sac710", "Years 7–10 — results", "y7-10_dashboard.html"),
-    ("dashboard", "Assessment dashboard", "dashboard.html"),
-    ("curriculum", "Curriculum report", "curriculum_report.html"),
-    ("analysis", "Test analysis", "test_analysis.html"),
-    ("review", "Review queue", "review.html"),
-    ("feedback", "Feedback slips", "feedback_slips.html"),
-]
-
-
-def _tool_cards() -> str:
-    out = []
-    for icon, title, blurb, how, btn_label, btn_js in _TOOLS:
-        # onclick JS goes through an HTML attribute — escape the quotes it carries.
-        js = btn_js.replace('"', "&quot;")
-        out.append(f"""<div class="tool">
-  <div class="tool-icon">{icon}</div>
-  <div class="tool-body"><h3>{title}</h3><p>{blurb}</p>
-  <p class="how"><span>How</span> {how}</p>
-  <button class="btn tool-go" onclick="{js}">{btn_label} →</button></div>
-</div>""")
-    return "".join(out)
-
-
-def _guide_view() -> str:
-    """The 'How to use' page — lives inside the hub so the one file explains itself."""
-    return """
-<div class="view" id="view-guide">
-  <h1>How to use Markable</h1>
-  <p class="lead">Markable has two ways in. Most staff only need the first.</p>
-
-  <div class="guide-grid">
-    <div class="guide-card">
-      <div class="gc-icon">🖱️</div>
-      <h2>1. No install — just this page</h2>
-      <p>The dashboard and readiness boxes run in your browser — those files are read locally and never leave your computer. Anything under <b>AI cloud</b> is different: it sends content to your chosen AI provider, and always asks you first.</p>
-      <ol>
-        <li><b>See your class results.</b> Go to <i>Home &amp; tools</i> → the
-          <b>Results spreadsheet</b> box → <b>Choose spreadsheet</b> and pick your marks
-          workbook (.xlsx). An instant dashboard appears: cohort overview, a tab per SAC/test
-          with question analysis, and every student's trajectory.</li>
-        <li><b>Map to the study design.</b> On that dashboard, pick a study design from the
-          dropdown — a <i>Skills &amp; content</i> tab appears showing what each student is
-          performing to. Press <b>⬇ Download this dashboard</b> to save it as its own file.</li>
-        <li><b>Check a test before marking.</b> Use the <b>Test → AI-marking readiness</b>
-          box → drop a test (.docx, .md or .txt). Markable reports how ready it is for
-          reliable AI marking and what to fix.</li>
-        <li><b>Read the reports.</b> The left menu under <i>Reports</i> opens each finished
-          report (dashboards, curriculum report, test analysis) right here.</li>
-      </ol>
-      <p class="note">Your spreadsheet needs a row with <b>Surname</b> and one column per
-      question with a <b>/N</b> mark header (the usual SAC layout). Multiple SACs = multiple
-      sheets.</p>
-    </div>
-
-    <div class="guide-card">
-      <div class="gc-icon">⌨️</div>
-      <h2>2. Full pipeline (the tech person)</h2>
-      <p>For preparing papers, scanning and AI marking, Markable runs from a command line.
-      One-time setup: install <code>uv</code>, then <code>uv sync</code>.</p>
-      <ol>
-        <li><b>Prepare a paper:</b> <code>markable ingest draft.md</code> →
-          <code>markable build packages/my-test</code> (makes a scan-friendly paper + marking key).</li>
-        <li><b>After the test:</b> <code>markable scan packages/my-test scans/*.pdf</code> →
-          <code>markable mark packages/my-test</code> (AI marks per question; unsure items go
-          to a review queue).</li>
-        <li><b>Reports:</b> <code>markable report packages/my-test --dashboard</code>,
-          <code>… --curriculum vc2-science</code>, or <code>markable analyse draft.md --curriculum vc2-science</code>.</li>
-        <li><b>Power BI:</b> <code>markable powerbi results.xlsx -o powerbi_export</code> cleans
-          the spreadsheet into ready-to-load tables + a build guide.</li>
-        <li><b>Bundle it all:</b> <code>markable studio -o markable.html --embed packages/my-test</code>
-          builds this single hub with every report baked in.</li>
-      </ol>
-      <p class="note">Each report is one self-contained HTML file — safe to email, print, or
-      archive. Full commands are on each tool card on the Home page.</p>
-    </div>
-  </div>
-
-  <h2 class="section">What each report shows</h2>
-  <table class="guide-table">
-    <tr><th>Report</th><th>Answers</th><th>Made by</th></tr>
-    <tr><td><b>Assessment dashboard</b></td><td>How did the class go? Which questions were hard? Top vs bottom quartile per question.</td><td>Upload box, or <code>report --dashboard</code></td></tr>
-    <tr><td><b>SAC gradebook dashboard</b></td><td>Every student across every SAC, plus per-SAC question analysis and skills.</td><td>Upload box, or <code>gradebook</code></td></tr>
-    <tr><td><b>Curriculum report</b></td><td>Attainment per outcome (green→red), strand rollups, misconceptions, coverage gaps.</td><td><code>report --curriculum</code></td></tr>
-    <tr><td><b>Test analysis</b></td><td>Each item → curriculum code, cognitive level, and the specific skill it targets.</td><td><code>analyse</code></td></tr>
-  </table>
-
-  <div class="privacy-note">🔒 <b>Privacy:</b> the dashboard and readiness boxes run entirely on
-  your device. The <i>AI cloud</i> features (reformat &amp; marking) are opt-in and send your
-  files directly to the AI provider you chose — Claude or your workplace's Copilot endpoint —
-  using your own key, with no Markable server in between. Codes in the sample curricula are
-  representative — verify against the official VCAA/ACARA source before formal reporting.</div>
-</div>
-"""
-
-
-def _report_nav() -> str:
-    return "".join(
-        f'<button class="nav-item" data-view="report" data-file="{target}" '
-        f'onclick="openReport(this)">{label}</button>'
-        for _id, label, target in _REPORTS
-    )
-
-
-_CSS = """
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Markable Studio</title>
+<style>
 :root{
   --surface:#ffffff; --page:#f4f6fb; --ink:#0f1729; --ink-2:#48566f; --muted:#8a95a8;
   --grid:#e6eaf2; --baseline:#c7cede; --border:rgba(15,23,41,.10);
@@ -520,85 +287,29 @@ table.clsq td.neg{color:#c0392b}table.clsq td.pos{color:#1f7a44}
 table.clsq td.concept-cell{background:none;text-align:left;color:var(--ink-2);font-size:12px}
 table.clsq tr.flag td{background:rgba(208,59,59,.08)}
 table.clsq tr.flag td.num.neg{font-weight:700}
-"""
-
-
-def _packs_payload() -> dict:
-    """Compact {id: {name, areas:[{strand, terms}]}} for the in-browser skills
-    auto-mapper, built from the science study-design fixtures so it stays in
-    step with the CLI packs."""
-    from pathlib import Path
-
-    import yaml
-
-    from .curriculum import _terms
-
-    root = Path(__file__).resolve().parents[2] / "fixtures" / "curricula"
-    out: dict = {}
-    for pid in ("vce-biology-u34", "ac9-science", "vc2-science"):
-        pack_file = root / pid / "pack.yaml"
-        if not pack_file.exists():
-            continue
-        data = yaml.safe_load(pack_file.read_text(encoding="utf-8"))
-        dim_names = {d["id"]: d.get("name", d["id"]) for d in data.get("dimensions", [])}
-        outcomes = []
-        for o in data["outcomes"]:
-            dim = dim_names.get(o["dimension"], o["dimension"])
-            terms = sorted(_terms(" ".join(
-                [o.get("topic", ""), o["strand"], *(o.get("elaborations", []))]
-            )))
-            outcomes.append({
-                "area": f"{dim} — {o['strand']}",
-                "terms": terms,
-            })
-        out[pid] = {"name": f"{data['curriculum']} v{data['version']}", "outcomes": outcomes}
-    return out
-
-
-def collect_reports(paths: list) -> dict:
-    """Find known report files under the given dirs/files → {filename: html}."""
-    from pathlib import Path
-
-    names = {target for _id, _label, target in _REPORTS}
-    found: dict[str, str] = {}
-    for p in paths:
-        p = Path(p)
-        if p.is_dir():
-            for name in names:
-                f = p / name
-                if f.exists():
-                    found[name] = f.read_text(encoding="utf-8")
-        elif p.is_file() and p.name in names:
-            found[p.name] = p.read_text(encoding="utf-8")
-    return found
-
-
-def render_studio(embedded: dict | None = None) -> str:
-    import json
-
-    ramps = {
-        "greenLight": _GREEN_LIGHT,
-        "greenDark": _GREEN_DARK,
-        "heatLight": [b[0] for b in _HEAT],
-        "heatDark": [b[2] for b in _HEAT],
-    }
-    from .improve import IMPROVE_SCHEMA, INSTRUCTION_PACK
-    from .rubric import RUBRIC_PACK, RUBRIC_SCHEMA
-
-    ramp_js = (
-        "const AI_MODELS={claude:'claude-opus-4-8'};\n"  # model ids in one place
-        + "const RAMPS=" + json.dumps(ramps) + ";\n"
-        + "const PACKS=" + json.dumps(_packs_payload()) + ";\n"
-        + "const STUDIO_CSS=" + json.dumps(_CSS) + ";\n"
-        # The CLI (`markable improve` / `markable rubric`) and the in-browser
-        # tools send identical instruction packages — one source of truth each.
-        + "const IMPROVE_PACK=" + json.dumps(INSTRUCTION_PACK) + ";\n"
-        + "const IMPROVE_SCHEMA=" + json.dumps(IMPROVE_SCHEMA) + ";\n"
-        + "const RUBRIC_PACK=" + json.dumps(RUBRIC_PACK) + ";\n"
-        + "const RUBRIC_SCHEMA=" + json.dumps(RUBRIC_SCHEMA) + ";"
-    )
-
-    landing = f"""
+</style></head>
+<body>
+<button id="nav-toggle" aria-label="Open menu" aria-expanded="false" onclick="navToggle()">☰ Menu</button>
+<div class="app">
+  <nav class="nav">
+    <div class="brand"><span class="dot">✓</span> Markable</div>
+    <button class="nav-item active" data-view="home" onclick="show('home',this)">🏠 Home &amp; tools</button>
+    <button class="nav-item" data-view="guide" onclick="show('guide',this)">📘 How to use</button>
+    <h4>Upload</h4>
+    <button class="nav-item" onclick="show('home');document.getElementById('drop-xlsx-input').click()">📈 Results → dashboard</button>
+    <button class="nav-item" onclick="show('home');document.getElementById('drop-doc-input').click()">📝 Test → AI-marking prep</button>
+    <h4>AI cloud</h4>
+    <button class="nav-item" data-view="optimise" onclick="show('optimise',this)">✨ Assessment optimiser</button>
+    <button class="nav-item" data-view="rubric" onclick="show('rubric',this)">📐 Rubric builder</button>
+    <button class="nav-item" data-view="aimark" onclick="show('aimark',this)">🤖 AI marking studio</button>
+    <button class="nav-item sub" onclick="show('aimark');scrollToEl('drop-aim-scans')">↳ Mark scanned scripts</button>
+    <button class="nav-item sub" onclick="show('aimark');scrollToEl('prov-claude')">↳ Claude / Copilot setup</button>
+    <h4>Reports</h4>
+    <button class="nav-item" data-view="report" data-file="vce_sac_dashboard.html" onclick="openReport(this)">VCE — SAC results</button><button class="nav-item" data-view="report" data-file="y7-10_dashboard.html" onclick="openReport(this)">Years 7–10 — results</button><button class="nav-item" data-view="report" data-file="dashboard.html" onclick="openReport(this)">Assessment dashboard</button><button class="nav-item" data-view="report" data-file="curriculum_report.html" onclick="openReport(this)">Curriculum report</button><button class="nav-item" data-view="report" data-file="test_analysis.html" onclick="openReport(this)">Test analysis</button><button class="nav-item" data-view="report" data-file="review.html" onclick="openReport(this)">Review queue</button><button class="nav-item" data-view="report" data-file="feedback_slips.html" onclick="openReport(this)">Feedback slips</button>
+    <div class="nav-foot">Report links open files saved beside this page. Generate them with the Markable CLI, or use the upload boxes above.</div>
+  </nav>
+  <main class="main">
+    
 <div class="view active" id="view-home">
   <div class="hero">
     <div>
@@ -612,7 +323,44 @@ def render_studio(embedded: dict | None = None) -> str:
         <button class="btn ghost" onclick="show('uploads');document.getElementById('drop-doc-input').click()">Analyse a test</button>
       </p>
     </div>
-    {_HERO_SVG}
+    
+<svg viewBox="0 0 480 220" role="img" aria-label="Markable" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="g" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#123a7a"/><stop offset="1" stop-color="#2f80ed"/>
+    </linearGradient>
+    <linearGradient id="gd" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4b93ff"/><stop offset="1" stop-color="#1e63d0"/>
+    </linearGradient>
+  </defs>
+  <!-- data bars -->
+  <g>
+    <rect x="16"  y="150" width="26" height="54"  rx="4" fill="url(#g)"/>
+    <rect x="52"  y="110" width="26" height="94"  rx="4" fill="url(#g)"/>
+    <rect x="88"  y="72"  width="26" height="132" rx="4" fill="url(#g)"/>
+    <rect x="124" y="128" width="26" height="76"  rx="4" fill="url(#g)"/>
+    <rect x="160" y="40"  width="26" height="164" rx="4" fill="url(#g)"/>
+    <polyline points="29,150 65,110 101,72 137,128 173,40"
+      fill="none" stroke="#0b0b0b" stroke-opacity=".28" stroke-width="2.5"
+      stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="173" cy="40" r="6" fill="#0b0b0b" fill-opacity=".28"/>
+  </g>
+  <!-- AI marking node graph + tick -->
+  <g transform="translate(250,26)" stroke="url(#gd)" stroke-width="2.5" fill="none">
+    <line x1="20" y1="40" x2="90" y2="18"/><line x1="20" y1="40" x2="90" y2="70"/>
+    <line x1="20" y1="120" x2="90" y2="70"/><line x1="20" y1="120" x2="90" y2="140"/>
+    <line x1="90" y1="18" x2="170" y2="80"/><line x1="90" y1="70" x2="170" y2="80"/>
+    <line x1="90" y1="140" x2="170" y2="80"/>
+  </g>
+  <g transform="translate(250,26)" fill="url(#gd)">
+    <circle cx="20" cy="40" r="8"/><circle cx="20" cy="120" r="8"/>
+    <circle cx="90" cy="18" r="8"/><circle cx="90" cy="70" r="8"/><circle cx="90" cy="140" r="8"/>
+    <circle cx="170" cy="80" r="15"/>
+  </g>
+  <path transform="translate(250,26)" d="M163 80 l5 6 l10 -13" stroke="#ffffff"
+    stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+
   </div>
 
   <h2 class="section">Choose your level</h2>
@@ -643,7 +391,52 @@ def render_studio(embedded: dict | None = None) -> str:
   </div>
 
   <h2 class="section">What Markable does</h2>
-  <div class="cards">{_tool_cards()}</div>
+  <div class="cards"><div class="tool">
+  <div class="tool-icon">📝</div>
+  <div class="tool-body"><h3>Ingest &amp; Build <span class="mode-chip cli">CLI</span></h3><p>Turn a messy Word/markdown draft into a scan-friendly, machine-markable paper with unique question IDs, answer zones, a per-page QR code and a structured marking key — the prep that makes AI marking reliable.</p>
+  <p class="how"><span>How</span> CLI: <code>markable ingest draft.md</code> then <code>markable build packages/my-test</code>. Or drop a draft in the <b>AI-marking readiness</b> box below to see what needs fixing first.</p>
+  <button class="btn tool-go" onclick="show('home');scrollToEl('drop-doc');$('drop-doc-input').click()">Prep my test →</button></div>
+</div><div class="tool">
+  <div class="tool-icon">📐</div>
+  <div class="tool-body"><h3>Rubric Builder</h3><p>AI-drafts the complete marking key from your test: criteria with marks, accept/reject lists, MCQ answers with distractor notes, and banded rubrics for extended responses — editable on the page, exported as key.yaml or a printable rubric.</p>
+  <p class="how"><span>How</span> Open the <b>Rubric builder</b> (left menu, under AI cloud). CLI twin: <code>markable rubric draft.md</code> → <b>key.yaml</b>.</p>
+  <button class="btn tool-go" onclick="show('rubric')">Build my rubric →</button></div>
+</div><div class="tool">
+  <div class="tool-icon">✨</div>
+  <div class="tool-body"><h3>Assessment Optimiser</h3><p>Optimise any assessment for AI marking: unique IDs, explicit marks, typed items and tightened wording — your questions and difficulty preserved, every change logged, with a before/after readiness score.</p>
+  <p class="how"><span>How</span> Open the <b>Assessment optimiser</b> (left menu, under AI cloud), drop your test in, and download the optimised version. CLI twin: <code>markable improve draft.docx</code>.</p>
+  <button class="btn tool-go" onclick="show('optimise')">Optimise my assessment →</button></div>
+</div><div class="tool">
+  <div class="tool-icon">🖨️</div>
+  <div class="tool-body"><h3>Scan <span class="mode-chip cli">CLI</span></h3><p>Read scanned scripts back in any order or orientation: deskews to the page's registration marks, matches each page by QR, and crops every answer zone.</p>
+  <p class="how"><span>How</span> CLI: <code>markable scan packages/my-test scans/*.pdf --id-map ids.yaml</code>.</p>
+  <button class="btn tool-go" onclick="show('aimark')">Upload scans → AI marking →</button></div>
+</div><div class="tool">
+  <div class="tool-icon">🤖</div>
+  <div class="tool-body"><h3>Mark</h3><p>AI marks per question across the whole cohort against your key, returning marks, evidence and feedback — anything uncertain goes to a human review queue.</p>
+  <p class="how"><span>How</span> CLI: <code>markable mark packages/my-test --batch</code> (needs an API key). Nothing below the confidence threshold is auto-finalised.</p>
+  <button class="btn tool-go" onclick="show('aimark')">Mark with Claude →</button></div>
+</div><div class="tool">
+  <div class="tool-icon">📊</div>
+  <div class="tool-body"><h3>Report &amp; Dashboard</h3><p>Scores, item analysis (facility, discrimination, distractors) and a single-file dashboard: cohort KPIs, score distribution and a question × quartile matrix.</p>
+  <p class="how"><span>How</span> CLI: <code>markable report packages/my-test --dashboard</code> → <b>dashboard.html</b>, then open it from the menu on the left.</p>
+  <button class="btn tool-go" onclick="show('home');scrollToEl('drop-xlsx');$('drop-xlsx-input').click()">Build a dashboard →</button></div>
+</div><div class="tool">
+  <div class="tool-icon">🎯</div>
+  <div class="tool-body"><h3>Curriculum Report</h3><p>Standards-referenced attainment against a curriculum: a green→red outcome heatmap per student, strand rollups, misconceptions and a coverage audit.</p>
+  <p class="how"><span>How</span> CLI: <code>markable tag …</code> then <code>markable report … --curriculum vc2-science</code> → <b>curriculum_report.html</b>.</p>
+  <button class="btn tool-go" onclick="openReportByFile('curriculum_report.html')">View curriculum report →</button></div>
+</div><div class="tool">
+  <div class="tool-icon">🔎</div>
+  <div class="tool-body"><h3>Test Analysis</h3><p>Point Markable at a test and get a per-item map: marks, strand / concept area, VCAA/ACARA code, cognitive level (Bloom's) and the specific skill each item targets.</p>
+  <p class="how"><span>How</span> CLI: <code>markable analyse draft.md --curriculum vc2-science</code> → <b>test_analysis.html</b>.</p>
+  <button class="btn tool-go" onclick="openReportByFile('test_analysis.html')">View test analysis →</button></div>
+</div><div class="tool">
+  <div class="tool-icon">📈</div>
+  <div class="tool-body"><h3>SAC Gradebook</h3><p>Already have marks in a spreadsheet? Upload a per-SAC results workbook and get an instant multi-tab dashboard — overall, per-SAC question analysis, and per-student skills mapped to the study design.</p>
+  <p class="how"><span>How</span> Use the <b>Results spreadsheet</b> upload box below — it runs entirely in your browser.</p>
+  <button class="btn tool-go" onclick="show('home');scrollToEl('drop-xlsx');$('drop-xlsx-input').click()">Upload my results →</button></div>
+</div></div>
 
   <h2 class="section" id="uploads">Upload &amp; go — runs in your browser</h2>
   <div class="uploads">
@@ -677,9 +470,74 @@ def render_studio(embedded: dict | None = None) -> str:
   command-line tool (dashboard.html, curriculum_report.html, …) appear in the left menu when kept
   beside this page.</p>
 </div>
-"""
 
-    aimark = """
+    
+<div class="view" id="view-optimise">
+  <h1>✨ Assessment optimiser <span class="mode-chip cloud">CLOUD — sends to your AI provider</span></h1>
+  <p class="lead">Drop in any test or assessment and get back a version optimised for reliable
+  AI marking — unique question IDs, explicit marks, typed items, tightened wording — with a
+  change log and a before/after readiness score. Your questions, difficulty and topics are
+  preserved: it restructures, it never rewrites your assessment.</p>
+
+  <div class="opt-flow">
+    <div class="opt-step"><span class="opt-n">1</span> Upload your assessment</div>
+    <div class="opt-arrow">→</div>
+    <div class="opt-step"><span class="opt-n">2</span> Markable checks AI-readiness</div>
+    <div class="opt-arrow">→</div>
+    <div class="opt-step"><span class="opt-n">3</span> AI optimises it</div>
+    <div class="opt-arrow">→</div>
+    <div class="opt-step"><span class="opt-n">4</span> Review changes &amp; download</div>
+  </div>
+
+  <div class="uploads" style="grid-template-columns:1fr">
+    <div class="drop" id="drop-opt">
+      <div class="big">✨</div>
+      <h3>Assessment → AI-optimised assessment</h3>
+      <p>Drop your test (.docx, .md or .txt). You'll see its readiness score first,
+      then one click optimises it with <span class="prov-name">Claude</span>.</p>
+      <button class="btn" onclick="$('drop-opt-input').click()">Choose assessment</button>
+      <input id="drop-opt-input" type="file" accept=".docx,.md,.txt,.markdown" hidden>
+      <div class="hint">Powered by your own AI key — set up under
+        <a href="#" onclick="show('aimark');scrollToEl('prov-claude');return false">Claude / Copilot setup</a>.</div>
+      <div class="status" role="status" aria-live="polite" id="opt-status"></div>
+    </div>
+  </div>
+
+  <div class="result" id="opt-result"></div>
+
+  <div class="privacy-note">🔒 The readiness check runs locally. Optimising sends the test
+  directly from this browser to the AI provider you chose — nothing in between.</div>
+</div>
+
+    
+<div class="view" id="view-rubric">
+  <h1>📐 Rubric builder <span class="mode-chip cloud">CLOUD — sends to your AI provider</span></h1>
+  <p class="lead">Drop in a test and get back a complete draft marking key: criteria with
+  marks for every question, accept/reject lists, MCQ answers with distractor notes, and
+  banded rubrics for extended responses. Edit it right here, then export
+  <code>key.yaml</code> for the marking pipeline — or a printable rubric for colleagues.</p>
+
+  <div class="uploads" style="grid-template-columns:1fr">
+    <div class="drop" id="drop-rub">
+      <div class="big">📐</div>
+      <h3>Test → draft marking key</h3>
+      <p>Drop the test (.docx, .md or .txt). Then generate the key with
+      <span class="prov-name">Claude</span>, or get a prompt for your own AI.</p>
+      <button class="btn" onclick="$('drop-rub-input').click()">Choose test</button>
+      <input id="drop-rub-input" type="file" accept=".docx,.md,.txt,.markdown" hidden>
+      <div class="hint">AI setup lives under
+        <a href="#" onclick="show('aimark');scrollToEl('prov-claude');return false">Claude / Copilot setup</a>.</div>
+      <div class="status" role="status" aria-live="polite" id="rub-status"></div>
+    </div>
+  </div>
+
+  <div class="result" id="rub-result"></div>
+
+  <div class="privacy-note">🔒 Generating a key sends the test directly from this browser to
+  the AI you chose. Every inference is listed for you to verify — you own the final key.</div>
+</div>
+
+    
 <div class="view" id="view-aimark">
   <h1>🤖 AI marking studio <span class="mode-chip cloud">CLOUD — sends to your AI provider</span></h1>
   <p class="lead">Upload your test, your answer key, and the scanned scripts — your chosen AI
@@ -760,130 +618,76 @@ def render_studio(embedded: dict | None = None) -> str:
   <div class="privacy-note">🔒 Files go directly from this browser to the AI provider you chose,
   over HTTPS — there is no Markable server in between.</div>
 </div>
-"""
 
-    optimise = """
-<div class="view" id="view-optimise">
-  <h1>✨ Assessment optimiser <span class="mode-chip cloud">CLOUD — sends to your AI provider</span></h1>
-  <p class="lead">Drop in any test or assessment and get back a version optimised for reliable
-  AI marking — unique question IDs, explicit marks, typed items, tightened wording — with a
-  change log and a before/after readiness score. Your questions, difficulty and topics are
-  preserved: it restructures, it never rewrites your assessment.</p>
+    
+<div class="view" id="view-guide">
+  <h1>How to use Markable</h1>
+  <p class="lead">Markable has two ways in. Most staff only need the first.</p>
 
-  <div class="opt-flow">
-    <div class="opt-step"><span class="opt-n">1</span> Upload your assessment</div>
-    <div class="opt-arrow">→</div>
-    <div class="opt-step"><span class="opt-n">2</span> Markable checks AI-readiness</div>
-    <div class="opt-arrow">→</div>
-    <div class="opt-step"><span class="opt-n">3</span> AI optimises it</div>
-    <div class="opt-arrow">→</div>
-    <div class="opt-step"><span class="opt-n">4</span> Review changes &amp; download</div>
-  </div>
+  <div class="guide-grid">
+    <div class="guide-card">
+      <div class="gc-icon">🖱️</div>
+      <h2>1. No install — just this page</h2>
+      <p>The dashboard and readiness boxes run in your browser — those files are read locally and never leave your computer. Anything under <b>AI cloud</b> is different: it sends content to your chosen AI provider, and always asks you first.</p>
+      <ol>
+        <li><b>See your class results.</b> Go to <i>Home &amp; tools</i> → the
+          <b>Results spreadsheet</b> box → <b>Choose spreadsheet</b> and pick your marks
+          workbook (.xlsx). An instant dashboard appears: cohort overview, a tab per SAC/test
+          with question analysis, and every student's trajectory.</li>
+        <li><b>Map to the study design.</b> On that dashboard, pick a study design from the
+          dropdown — a <i>Skills &amp; content</i> tab appears showing what each student is
+          performing to. Press <b>⬇ Download this dashboard</b> to save it as its own file.</li>
+        <li><b>Check a test before marking.</b> Use the <b>Test → AI-marking readiness</b>
+          box → drop a test (.docx, .md or .txt). Markable reports how ready it is for
+          reliable AI marking and what to fix.</li>
+        <li><b>Read the reports.</b> The left menu under <i>Reports</i> opens each finished
+          report (dashboards, curriculum report, test analysis) right here.</li>
+      </ol>
+      <p class="note">Your spreadsheet needs a row with <b>Surname</b> and one column per
+      question with a <b>/N</b> mark header (the usual SAC layout). Multiple SACs = multiple
+      sheets.</p>
+    </div>
 
-  <div class="uploads" style="grid-template-columns:1fr">
-    <div class="drop" id="drop-opt">
-      <div class="big">✨</div>
-      <h3>Assessment → AI-optimised assessment</h3>
-      <p>Drop your test (.docx, .md or .txt). You'll see its readiness score first,
-      then one click optimises it with <span class="prov-name">Claude</span>.</p>
-      <button class="btn" onclick="$('drop-opt-input').click()">Choose assessment</button>
-      <input id="drop-opt-input" type="file" accept=".docx,.md,.txt,.markdown" hidden>
-      <div class="hint">Powered by your own AI key — set up under
-        <a href="#" onclick="show('aimark');scrollToEl('prov-claude');return false">Claude / Copilot setup</a>.</div>
-      <div class="status" role="status" aria-live="polite" id="opt-status"></div>
+    <div class="guide-card">
+      <div class="gc-icon">⌨️</div>
+      <h2>2. Full pipeline (the tech person)</h2>
+      <p>For preparing papers, scanning and AI marking, Markable runs from a command line.
+      One-time setup: install <code>uv</code>, then <code>uv sync</code>.</p>
+      <ol>
+        <li><b>Prepare a paper:</b> <code>markable ingest draft.md</code> →
+          <code>markable build packages/my-test</code> (makes a scan-friendly paper + marking key).</li>
+        <li><b>After the test:</b> <code>markable scan packages/my-test scans/*.pdf</code> →
+          <code>markable mark packages/my-test</code> (AI marks per question; unsure items go
+          to a review queue).</li>
+        <li><b>Reports:</b> <code>markable report packages/my-test --dashboard</code>,
+          <code>… --curriculum vc2-science</code>, or <code>markable analyse draft.md --curriculum vc2-science</code>.</li>
+        <li><b>Power BI:</b> <code>markable powerbi results.xlsx -o powerbi_export</code> cleans
+          the spreadsheet into ready-to-load tables + a build guide.</li>
+        <li><b>Bundle it all:</b> <code>markable studio -o markable.html --embed packages/my-test</code>
+          builds this single hub with every report baked in.</li>
+      </ol>
+      <p class="note">Each report is one self-contained HTML file — safe to email, print, or
+      archive. Full commands are on each tool card on the Home page.</p>
     </div>
   </div>
 
-  <div class="result" id="opt-result"></div>
+  <h2 class="section">What each report shows</h2>
+  <table class="guide-table">
+    <tr><th>Report</th><th>Answers</th><th>Made by</th></tr>
+    <tr><td><b>Assessment dashboard</b></td><td>How did the class go? Which questions were hard? Top vs bottom quartile per question.</td><td>Upload box, or <code>report --dashboard</code></td></tr>
+    <tr><td><b>SAC gradebook dashboard</b></td><td>Every student across every SAC, plus per-SAC question analysis and skills.</td><td>Upload box, or <code>gradebook</code></td></tr>
+    <tr><td><b>Curriculum report</b></td><td>Attainment per outcome (green→red), strand rollups, misconceptions, coverage gaps.</td><td><code>report --curriculum</code></td></tr>
+    <tr><td><b>Test analysis</b></td><td>Each item → curriculum code, cognitive level, and the specific skill it targets.</td><td><code>analyse</code></td></tr>
+  </table>
 
-  <div class="privacy-note">🔒 The readiness check runs locally. Optimising sends the test
-  directly from this browser to the AI provider you chose — nothing in between.</div>
+  <div class="privacy-note">🔒 <b>Privacy:</b> the dashboard and readiness boxes run entirely on
+  your device. The <i>AI cloud</i> features (reformat &amp; marking) are opt-in and send your
+  files directly to the AI provider you chose — Claude or your workplace's Copilot endpoint —
+  using your own key, with no Markable server in between. Codes in the sample curricula are
+  representative — verify against the official VCAA/ACARA source before formal reporting.</div>
 </div>
-"""
 
-    rubric_view = """
-<div class="view" id="view-rubric">
-  <h1>📐 Rubric builder <span class="mode-chip cloud">CLOUD — sends to your AI provider</span></h1>
-  <p class="lead">Drop in a test and get back a complete draft marking key: criteria with
-  marks for every question, accept/reject lists, MCQ answers with distractor notes, and
-  banded rubrics for extended responses. Edit it right here, then export
-  <code>key.yaml</code> for the marking pipeline — or a printable rubric for colleagues.</p>
-
-  <div class="uploads" style="grid-template-columns:1fr">
-    <div class="drop" id="drop-rub">
-      <div class="big">📐</div>
-      <h3>Test → draft marking key</h3>
-      <p>Drop the test (.docx, .md or .txt). Then generate the key with
-      <span class="prov-name">Claude</span>, or get a prompt for your own AI.</p>
-      <button class="btn" onclick="$('drop-rub-input').click()">Choose test</button>
-      <input id="drop-rub-input" type="file" accept=".docx,.md,.txt,.markdown" hidden>
-      <div class="hint">AI setup lives under
-        <a href="#" onclick="show('aimark');scrollToEl('prov-claude');return false">Claude / Copilot setup</a>.</div>
-      <div class="status" role="status" aria-live="polite" id="rub-status"></div>
-    </div>
-  </div>
-
-  <div class="result" id="rub-result"></div>
-
-  <div class="privacy-note">🔒 Generating a key sends the test directly from this browser to
-  the AI you chose. Every inference is listed for you to verify — you own the final key.</div>
-</div>
-"""
-
-    import html as _html
-
-    embedded = embedded or {}
-
-    def _frame(tid: str, label: str, target: str) -> str:
-        if target in embedded:
-            # Inline the whole report via srcdoc — its own CSS stays isolated in
-            # the iframe, so the hub becomes one portable file with no siblings.
-            doc = _html.escape(embedded[target], quote=True)
-            return (f'<div class="iframe-wrap" id="frame-{tid}">'
-                    f'<iframe data-file="{target}" srcdoc="{doc}" title="{label}"></iframe></div>')
-        return (f'<div class="iframe-wrap" id="frame-{tid}">'
-                f'<iframe data-file="{target}" data-src="{target}" title="{label}"></iframe></div>')
-
-    report_frames = "".join(_frame(tid, label, target) for tid, label, target in _REPORTS)
-    nav_foot = (
-        "Reports are embedded in this file — everything opens from the menu, nothing else needed."
-        if embedded else
-        "Report links open files saved beside this page. Generate them with the Markable CLI, "
-        "or use the upload boxes above."
-    )
-
-    return f"""<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Markable Studio</title>
-<style>{_CSS}</style></head>
-<body>
-<button id="nav-toggle" aria-label="Open menu" aria-expanded="false" onclick="navToggle()">☰ Menu</button>
-<div class="app">
-  <nav class="nav">
-    <div class="brand"><span class="dot">✓</span> Markable</div>
-    <button class="nav-item active" data-view="home" onclick="show('home',this)">🏠 Home &amp; tools</button>
-    <button class="nav-item" data-view="guide" onclick="show('guide',this)">📘 How to use</button>
-    <h4>Upload</h4>
-    <button class="nav-item" onclick="show('home');document.getElementById('drop-xlsx-input').click()">📈 Results → dashboard</button>
-    <button class="nav-item" onclick="show('home');document.getElementById('drop-doc-input').click()">📝 Test → AI-marking prep</button>
-    <h4>AI cloud</h4>
-    <button class="nav-item" data-view="optimise" onclick="show('optimise',this)">✨ Assessment optimiser</button>
-    <button class="nav-item" data-view="rubric" onclick="show('rubric',this)">📐 Rubric builder</button>
-    <button class="nav-item" data-view="aimark" onclick="show('aimark',this)">🤖 AI marking studio</button>
-    <button class="nav-item sub" onclick="show('aimark');scrollToEl('drop-aim-scans')">↳ Mark scanned scripts</button>
-    <button class="nav-item sub" onclick="show('aimark');scrollToEl('prov-claude')">↳ Claude / Copilot setup</button>
-    <h4>Reports</h4>
-    {_report_nav()}
-    <div class="nav-foot">{nav_foot}</div>
-  </nav>
-  <main class="main">
-    {landing}
-    {optimise}
-    {rubric_view}
-    {aimark}
-    {_guide_view()}
-    {report_frames}
+    <div class="iframe-wrap" id="frame-sacvce"><iframe data-file="vce_sac_dashboard.html" data-src="vce_sac_dashboard.html" title="VCE — SAC results"></iframe></div><div class="iframe-wrap" id="frame-sac710"><iframe data-file="y7-10_dashboard.html" data-src="y7-10_dashboard.html" title="Years 7–10 — results"></iframe></div><div class="iframe-wrap" id="frame-dashboard"><iframe data-file="dashboard.html" data-src="dashboard.html" title="Assessment dashboard"></iframe></div><div class="iframe-wrap" id="frame-curriculum"><iframe data-file="curriculum_report.html" data-src="curriculum_report.html" title="Curriculum report"></iframe></div><div class="iframe-wrap" id="frame-analysis"><iframe data-file="test_analysis.html" data-src="test_analysis.html" title="Test analysis"></iframe></div><div class="iframe-wrap" id="frame-review"><iframe data-file="review.html" data-src="review.html" title="Review queue"></iframe></div><div class="iframe-wrap" id="frame-feedback"><iframe data-file="feedback_slips.html" data-src="feedback_slips.html" title="Feedback slips"></iframe></div>
     <div class="iframe-wrap" id="frame-missing"><div class="iframe-missing" style="display:block">
       <h2>Not found beside this page</h2>
       <p>This report opens a file (e.g. <code>dashboard.html</code>) saved in the same folder as
@@ -892,13 +696,15 @@ def render_studio(embedded: dict | None = None) -> str:
   </main>
 </div>
 <div id="tip" style="position:fixed;display:none"></div>
-<script>{ramp_js}
-{_JS}</script>
-</body></html>"""
+<script>const AI_MODELS={claude:'claude-opus-4-8'};
+const RAMPS={"greenLight": ["#c9f7d8", "#8beeae", "#45de81", "#00c853", "#00a344", "#007d34", "#005224"], "greenDark": ["#00461f", "#006c2e", "#00913d", "#00b64c", "#12d95f", "#5ceb8f", "#a5f7c3"], "heatLight": ["#c23b3b", "#d96a3a", "#e79a41", "#dcb844", "#9ebe4b", "#55a344", "#1e7a34"], "heatDark": ["#c94747", "#d97740", "#e2a24d", "#d3b957", "#8fc058", "#4fae4d", "#2e9647"]};
+const PACKS={"vce-biology-u34": {"name": "VCE Biology Units 3 & 4 (representative subset) v2022-poc", "outcomes": [{"area": "Key knowledge \u2014 U3 AoS1 \u00b7 Cellular processes", "terms": ["acid", "amino", "ao", "cellular", "dna", "gene", "nucleic", "processe", "protein", "rna", "transcription", "translation"]}, {"area": "Key knowledge \u2014 U3 AoS1 \u00b7 Cellular processes", "terms": ["active", "ao", "catalyst", "cellular", "coenzyme", "enzyme", "inhibitor", "processe", "regulation", "site", "substrate"]}, {"area": "Key knowledge \u2014 U3 AoS1 \u00b7 Cellular processes", "terms": ["ao", "cellular", "chloroplast", "glucose", "light", "photosynthesi", "processe", "rate"]}, {"area": "Key knowledge \u2014 U3 AoS1 \u00b7 Cellular processes", "terms": ["ao", "atp", "cellular", "fermentation", "glucose", "mitochondria", "oxygen", "processe", "respiration"]}, {"area": "Key knowledge \u2014 U3 AoS2 \u00b7 Responding to antigens", "terms": ["antigen", "ao", "molecule", "pathogen", "receptor", "responding", "signal", "signalling"]}, {"area": "Key knowledge \u2014 U3 AoS2 \u00b7 Responding to antigens", "terms": ["adaptive", "antibody", "antigen", "ao", "immune", "immunity", "inflammation", "innate", "lymphocyte", "responding"]}, {"area": "Key knowledge \u2014 U3 AoS2 \u00b7 Responding to antigens", "terms": ["allergy", "antigen", "ao", "autoimmune", "dysfunction", "immune", "immunotherapy", "responding", "technologie", "vaccine"]}, {"area": "Key science skills \u2014 Key science skills \u00b7 Investigation design", "terms": ["aim", "design", "hypothese", "hypothesi", "investigation", "key", "prediction", "question", "research", "science", "skill"]}, {"area": "Key science skills \u2014 Key science skills \u00b7 Investigation design", "terms": ["conducting", "design", "experiment", "investigation", "key", "logbook", "material", "method", "methodology", "planning", "risk", "safety", "science", "skill", "variable"]}, {"area": "Key science skills \u2014 Key science skills \u00b7 Data & analysis", "terms": ["analysi", "data", "generate", "graph", "key", "logbook", "record", "result", "science", "skill", "table"]}, {"area": "Key science skills \u2014 Key science skills \u00b7 Data & analysis", "terms": ["analyse", "analysi", "data", "discussion", "error", "evaluate", "key", "modification", "quality", "science", "skill", "trend"]}, {"area": "Key science skills \u2014 Key science skills \u00b7 Conclusions & communication", "terms": ["communication", "conclusion", "count", "extension", "intro", "key", "science", "scientific", "skill", "word"]}]}, "ac9-science": {"name": "Australian Curriculum v9 Science (representative subset) v9.0-poc", "outcomes": [{"area": "Science Understanding \u2014 Biological sciences", "terms": ["biological", "cell", "classification", "classify", "kingdom", "organism", "science", "structure"]}, {"area": "Science Understanding \u2014 Chemical sciences", "terms": ["chemical", "filtration", "mixture", "science", "separation", "solution", "substance"]}, {"area": "Science Understanding \u2014 Chemical sciences", "terms": ["chemical", "energy", "ga", "liquid", "model", "particle", "science", "solid"]}, {"area": "Science Understanding \u2014 Physical sciences", "terms": ["energy", "form", "kinetic", "physical", "potential", "science", "transfer", "transformation"]}, {"area": "Science Understanding \u2014 Chemical sciences", "terms": ["atom", "atomic", "charge", "chemical", "electron", "element", "neutron", "particle", "proton", "science", "structure"]}, {"area": "Science Understanding \u2014 Chemical sciences", "terms": ["chemical", "conservation", "equation", "mas", "mole", "product", "reactant", "reaction", "science"]}, {"area": "Science Understanding \u2014 Chemical sciences", "terms": ["catalyst", "chemical", "collision", "endothermic", "energy", "exothermic", "rate", "reaction", "science", "temperature"]}, {"area": "Science Understanding \u2014 Physical sciences", "terms": ["conduction", "conservation", "convection", "energy", "physical", "radiation", "science", "transfer"]}, {"area": "Science Understanding \u2014 Biological sciences", "terms": ["allele", "biological", "chromosome", "dna", "gene", "genetic", "inheritance", "science", "trait"]}, {"area": "Science Understanding \u2014 Biological sciences", "terms": ["adaptation", "biological", "evidence", "evolution", "natural", "science", "selection", "specie"]}, {"area": "Science Understanding \u2014 Physical sciences", "terms": ["acceleration", "force", "momentum", "motion", "newton", "physical", "science", "velocity"]}, {"area": "Science as a Human Endeavour \u2014 Use and influence of science", "terms": ["application", "decision", "ethic", "influence", "science", "society", "technology"]}, {"area": "Science Inquiry \u2014 Questioning and predicting", "terms": ["aim", "hypothese", "hypothesi", "predicting", "prediction", "question", "questioning", "variable"]}, {"area": "Science Inquiry \u2014 Planning and conducting", "terms": ["conducting", "controlled", "fair", "method", "plan", "planning", "risk", "safety", "test", "testing", "variable"]}, {"area": "Science Inquiry \u2014 Processing, modelling and analysing", "terms": ["analyse", "analysi", "analysing", "data", "graph", "model", "modelling", "pattern", "processing", "table", "trend"]}, {"area": "Science Inquiry \u2014 Evaluating", "terms": ["concluding", "conclusion", "error", "evaluate", "evaluating", "improvement", "reliability", "validity"]}]}, "vc2-science": {"name": "Victorian Curriculum 2.0 Science (representative subset) v2.0-poc", "outcomes": [{"area": "Science Understanding \u2014 Chemical sciences", "terms": ["atomic", "charge", "chemical", "mas", "particle", "relating", "science", "structure", "subatomic"]}, {"area": "Science Understanding \u2014 Chemical sciences", "terms": ["calculating", "chemical", "everyday", "from", "identifying", "mas", "molar", "mole", "product", "reactant", "reaction", "science"]}, {"area": "Science Understanding \u2014 Chemical sciences", "terms": ["chemical", "collision", "energy", "frequency", "increased", "linking", "rate", "reaction", "science", "temperature"]}, {"area": "Science Understanding \u2014 Chemical sciences", "terms": ["cell", "chemical", "electrode", "electrolyte", "electron", "energy", "flow", "identifying", "reaction", "science"]}, {"area": "Science Understanding \u2014 Physical sciences", "terms": ["energy", "physical", "science", "transfer"]}, {"area": "Science Understanding \u2014 Biological sciences", "terms": ["biological", "genetic", "science"]}, {"area": "Science Understanding \u2014 Biological sciences", "terms": ["biological", "evolution", "science"]}, {"area": "Science Understanding \u2014 Chemical sciences", "terms": ["chemical", "periodic", "science", "table"]}, {"area": "Science Understanding \u2014 Physical sciences", "terms": ["conservation", "energy", "physical", "science"]}, {"area": "Science Understanding \u2014 Physical sciences", "terms": ["applying", "everyday", "explaining", "law", "motion", "newton", "physical", "recalling", "science", "three"]}, {"area": "Science Inquiry \u2014 Questioning and predicting", "terms": ["hypothesising", "predicting", "questioning"]}, {"area": "Science Inquiry \u2014 Planning and conducting", "terms": ["conducting", "fair", "planning", "testing"]}, {"area": "Science Inquiry \u2014 Processing, modelling and analysis", "terms": ["analysi", "data", "modelling", "processing"]}, {"area": "Science Inquiry \u2014 Evaluating", "terms": ["evaluating", "evidence"]}, {"area": "Science Inquiry \u2014 Communicating", "terms": ["communicating", "communication", "scientific"]}]}};
+const STUDIO_CSS="\n:root{\n  --surface:#ffffff; --page:#f4f6fb; --ink:#0f1729; --ink-2:#48566f; --muted:#8a95a8;\n  --grid:#e6eaf2; --baseline:#c7cede; --border:rgba(15,23,41,.10);\n  --accent:#1e63d0; --accent-2:#2f80ed; --accent-wash:rgba(30,99,208,.08);\n  --nav:#0d1830; --nav-ink:#e9f0fb; --nav-ink-2:#9fb0cc; --empty:#eef1f7;\n  --tip-bg:#0f1729; --tip-ink:#fff;\n}\n@media (prefers-color-scheme: dark){\n  :root{\n    --surface:#141a26; --page:#0b0f17; --ink:#eaf0fb; --ink-2:#a9b6cc; --muted:#6f7c93;\n    --grid:#232c3d; --baseline:#33405a; --border:rgba(255,255,255,.10);\n    --accent:#4b93ff; --accent-2:#6aa8ff; --accent-wash:rgba(75,147,255,.12);\n    --nav:#0a1220; --nav-ink:#e9f0fb; --nav-ink-2:#9fb0cc; --empty:#232c3d;\n    --tip-bg:#eaf0fb; --tip-ink:#0f1729;\n  }\n}\n*{box-sizing:border-box}\nhtml,body{margin:0;height:100%}\nbody{background:var(--page);color:var(--ink);\n  font-family:system-ui,-apple-system,\"Segoe UI\",sans-serif;font-size:14px;line-height:1.45}\n.app{display:grid;grid-template-columns:248px 1fr;min-height:100vh}\n/* left nav */\n.nav{background:var(--nav);color:var(--nav-ink);padding:18px 14px;position:sticky;top:0;height:100vh;overflow-y:auto}\n.brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:18px;margin:2px 4px 18px;color:#fff}\n.brand .dot{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,var(--accent-2),var(--accent));\n  display:inline-flex;align-items:center;justify-content:center;color:#04170c;font-size:14px}\n.nav h4{color:var(--nav-ink-2);font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin:16px 8px 6px}\n.nav-item{display:block;width:100%;text-align:left;appearance:none;background:none;border:0;color:var(--nav-ink);\n  font:inherit;font-size:13.5px;padding:8px 10px;border-radius:8px;cursor:pointer}\n.nav-item:hover{background:rgba(255,255,255,.06)}\n.nav-item.active{background:linear-gradient(135deg,rgba(18,217,95,.22),rgba(0,163,68,.18));font-weight:600}\n.nav-foot{color:var(--nav-ink-2);font-size:11px;margin:18px 8px 0;line-height:1.5}\n/* main */\n.main{padding:0;overflow:hidden}\n.view{display:none;padding:26px 30px 60px;max-width:1160px}\n.view.active{display:block}\n.iframe-wrap{display:none;height:100vh}\n.iframe-wrap.active{display:block}\n.iframe-wrap iframe{width:100%;height:100%;border:0;background:var(--surface)}\n.iframe-missing{display:none;padding:40px;color:var(--ink-2)}\n/* how-to-use guide */\n#view-guide h1{font-size:26px;margin:0 0 4px}\n#view-guide .lead{color:var(--ink-2);font-size:15px;margin:0 0 20px}\n.guide-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:8px}\n@media(max-width:820px){.guide-grid{grid-template-columns:1fr}}\n.guide-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px 22px}\n.guide-card .gc-icon{font-size:26px;margin-bottom:6px}\n.guide-card h2{font-size:16px;margin:0 0 8px}\n.guide-card ol{margin:10px 0 8px;padding-left:20px}\n.guide-card li{margin-bottom:9px;color:var(--ink);font-size:14px}\n.guide-card .note{color:var(--muted);font-size:12.5px;margin:8px 0 0;border-top:1px solid var(--grid);padding-top:8px}\n.guide-table{border-collapse:collapse;width:100%;margin-bottom:18px;background:var(--surface);\n  border:1px solid var(--border);border-radius:12px;overflow:hidden}\n.guide-table th{text-align:left;font-size:12.5px;color:var(--ink-2);background:var(--accent-wash);padding:9px 14px}\n.guide-table td{padding:10px 14px;border-top:1px solid var(--grid);font-size:13.5px;vertical-align:top}\n.guide-table td:first-child{white-space:nowrap}\n.privacy-note{background:var(--accent-wash);border-left:3px solid var(--accent);border-radius:0 10px 10px 0;\n  padding:12px 16px;font-size:13.5px;color:var(--ink-2)}\n/* hero */\n.hero{display:grid;grid-template-columns:1fr 480px;gap:20px;align-items:center;\n  background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px 30px;margin-bottom:22px}\n.hero h1{font-size:30px;margin:0 0 8px;letter-spacing:-.01em}\n.hero .tag{display:inline-block;background:var(--accent-wash);color:var(--accent);\n  border-radius:99px;padding:3px 12px;font-size:12.5px;font-weight:600;margin-bottom:12px}\n.hero p{color:var(--ink-2);margin:0 0 6px;max-width:52ch;font-size:15px}\n.hero svg{width:100%;height:auto}\n@media(max-width:920px){.hero{grid-template-columns:1fr}.app{grid-template-columns:1fr}\n  .nav{position:static;height:auto}}\n/* tool cards */\n.products{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:26px}\n@media(max-width:820px){.products{grid-template-columns:1fr}}\n.product{position:relative;border-radius:16px;padding:22px 24px;color:#fff;overflow:hidden;\n  border:1px solid var(--border)}\n.product.vce{background:linear-gradient(135deg,#12336e,#1e63d0)}\n.product.js{background:linear-gradient(135deg,#0e3a5f,#2f80ed)}\n.product .band{display:inline-block;background:rgba(255,255,255,.18);border-radius:99px;\n  padding:2px 11px;font-size:12px;font-weight:600;margin-bottom:10px}\n.product h2{color:#fff;font-size:20px;margin:0 0 6px}\n.product p{color:rgba(255,255,255,.9);margin:0 0 14px;font-size:14px;max-width:44ch}\n.product .pbtns{display:flex;gap:8px;flex-wrap:wrap}\n.product .pbtn{appearance:none;border:0;border-radius:9px;padding:9px 14px;font:inherit;font-size:13.5px;\n  font-weight:600;cursor:pointer;background:#fff;color:#123a7a}\n.product .pbtn.ghost{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.35)}\n.product .curric{margin-top:12px;font-size:12px;color:rgba(255,255,255,.75)}\n.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}\n.tool{display:flex;gap:14px;background:var(--surface);border:1px solid var(--border);\n  border-radius:12px;padding:16px 18px}\n.tool-icon{font-size:24px;line-height:1;flex:0 0 auto}\n.tool-body h3{margin:0 0 4px;font-size:15px}\n.tool-body p{margin:0 0 6px;color:var(--ink-2);font-size:13.5px}\n.tool-body .how{color:var(--muted);font-size:12.5px}\n.how span{display:inline-block;background:var(--accent-wash);color:var(--accent);\n  border-radius:5px;padding:0 6px;font-weight:600;font-size:11px;margin-right:4px}\ncode{background:var(--empty);border-radius:5px;padding:.5px 5px;font-size:12px}\nh2.section{font-size:17px;margin:26px 0 12px}\n/* upload boxes */\n.uploads{display:grid;grid-template-columns:1fr 1fr;gap:16px}\n@media(max-width:820px){.uploads{grid-template-columns:1fr}}\n.drop{background:var(--surface);border:2px dashed var(--baseline);border-radius:14px;\n  padding:22px;text-align:center;transition:.12s}\n.drop.drag{border-color:var(--accent);background:var(--accent-wash)}\n.drop h3{margin:2px 0 4px;font-size:15px}\n.drop p{color:var(--ink-2);margin:0 0 14px;font-size:13px}\n.drop .big{font-size:26px;margin-bottom:6px}\n.btn{appearance:none;border:0;border-radius:9px;background:linear-gradient(135deg,var(--accent-2),var(--accent));\n  color:#04170c;font:inherit;font-weight:600;font-size:13.5px;padding:9px 16px;cursor:pointer}\n.btn:hover{filter:brightness(1.05)}\n.btn.ghost{background:none;border:1px solid var(--border);color:var(--ink)}\n.hint{color:var(--muted);font-size:12px;margin-top:10px}\n.status{margin-top:12px;font-size:13px;color:var(--ink-2);min-height:1.2em}\n.status.err{color:#d03b3b}\n/* rendered results reuse dashboard styles */\n.result{margin-top:22px;display:none}\n.result.active{display:block}\n.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:12px;margin:14px 0 18px}\n.tile{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:13px 15px}\n.tile .label{color:var(--ink-2);font-size:12px;margin-bottom:4px}\n.tile .value{font-weight:600;font-size:24px}.tile .value.hero{font-size:40px;line-height:1.05}\n.tile .note{color:var(--muted);font-size:11.5px;margin-top:2px}\n.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 20px;margin-bottom:16px}\n.card h3{margin:0 0 12px;font-size:15px}\n.subtabs{display:flex;flex-wrap:wrap;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px}\n.subtabs button{appearance:none;background:none;border:0;border-bottom:3px solid transparent;color:var(--ink-2);\n  font:inherit;font-size:13px;padding:8px 13px;cursor:pointer;border-radius:6px 6px 0 0}\n.subtabs button.active{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}\n.subtab{display:none}.subtab.active{display:block}\n.hist{display:grid;grid-template-columns:repeat(10,1fr);gap:6px;align-items:end;height:130px;\n  border-bottom:1px solid var(--baseline);padding:0 2px}\n.hist .col{position:relative;background:var(--accent);border-radius:4px 4px 0 0;min-height:2px}\n.hist .col .n{position:absolute;top:-17px;width:100%;text-align:center;font-size:11px;color:var(--ink-2)}\n.hist-x{display:grid;grid-template-columns:repeat(10,1fr);gap:6px;padding:4px 2px 0;color:var(--muted);font-size:10.5px;text-align:center}\n.mx{overflow-x:auto}.mx table{border-collapse:separate;border-spacing:2px}\n.mx th{font-weight:500;color:var(--ink-2);font-size:11.5px;padding:2px 6px;text-align:center;white-space:nowrap}\n.mx th.rowh{text-align:left;position:sticky;left:0;background:var(--surface)}\n.mx td{min-width:44px;height:26px;text-align:center;border-radius:4px;font-size:11.5px;font-variant-numeric:tabular-nums}\n.mx td.na{background:var(--empty);color:var(--muted)}\n.chip{display:inline-block;border-radius:99px;padding:1px 9px;font-size:11.5px;border:1px solid var(--border);color:var(--ink-2)}\n.chip.easy{border-color:var(--accent)}.chip.difficult{border-color:#d03b3b;color:#d03b3b}\n.chip.good{border-color:var(--accent)}.chip.warn{border-color:#e79a41;color:#a15c00}\ntable.plain{border-collapse:collapse;width:100%}\ntable.plain th{color:var(--ink-2);font-weight:500;font-size:12px;text-align:left;border-bottom:1px solid var(--baseline);padding:6px 10px 6px 0}\ntable.plain td{border-bottom:1px solid var(--grid);padding:6px 10px 6px 0}\n.readiness{display:flex;align-items:center;gap:16px;margin-bottom:14px}\n.gauge{--v:0;width:88px;height:88px;border-radius:50%;flex:0 0 auto;\n  background:conic-gradient(var(--accent) calc(var(--v)*1%), var(--empty) 0);\n  display:flex;align-items:center;justify-content:center}\n.gauge span{width:66px;height:66px;border-radius:50%;background:var(--surface);display:flex;\n  align-items:center;justify-content:center;font-weight:700;font-size:20px}\n.foot{color:var(--muted);font-size:12px;margin-top:22px}\n\n/* P0 hardening: chips, consent, warnings, review controls, a11y */\n.mode-chip{display:inline-block;vertical-align:middle;font-size:10.5px;font-weight:700;\n  letter-spacing:.05em;border-radius:99px;padding:2px 9px;margin-left:6px}\n.mode-chip.local{color:#1f7a44;border:1px solid #1f7a44}\n.mode-chip.cloud{color:#a15c00;border:1px solid #e79a41}\n.mode-chip.cli{color:var(--ink-2);border:1px solid var(--border)}\n#consent-overlay{position:fixed;inset:0;background:rgba(8,12,22,.55);z-index:50;\n  display:flex;align-items:center;justify-content:center;padding:18px}\n.consent{background:var(--surface);color:var(--ink);border-radius:14px;max-width:34rem;\n  padding:22px 26px;border:1px solid var(--border);max-height:80vh;overflow:auto}\n.consent h3{margin:0 0 8px}\n.consent ul{margin:8px 0;padding-left:20px;max-height:180px;overflow:auto}\n.consent-warn{background:var(--accent-wash);border-radius:8px;padding:10px 12px;font-size:12.5px}\n.warn-banner{background:rgba(231,154,65,.12);border:1px solid #e79a41;border-radius:10px;\n  padding:12px 16px;margin-bottom:12px}\n.warn-banner ul{margin:6px 0 0;padding-left:20px}\n.rev-ctl{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px}\n.rev-ctl input[type=number]{width:70px}\n.rev-ctl input{padding:6px 8px;border-radius:6px;border:1px solid var(--border);\n  background:var(--page);color:var(--ink);font:inherit}\ntable.marks tr.flag td{background:rgba(231,154,65,.08)}\nbutton:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,a:focus-visible{\n  outline:2px solid var(--accent);outline-offset:2px}\n#nav-toggle{display:none;position:fixed;top:10px;left:10px;z-index:40;background:var(--nav);\n  color:var(--nav-ink);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font:inherit;cursor:pointer}\n@media(max-width:880px){\n  .app{grid-template-columns:1fr}\n  .nav{position:fixed;left:0;top:0;bottom:0;width:min(78vw,280px);transform:translateX(-100%);\n    transition:transform .2s;z-index:30}\n  .nav.open{transform:none;box-shadow:0 0 40px rgba(0,0,0,.4)}\n  #nav-toggle{display:block}\n  .main{padding-top:52px}\n}\n.li-good::before{content:\"\u2713 \";color:var(--accent);font-weight:700}\n.li-warn::before{content:\"! \";color:#a15c00;font-weight:700}\n/* AI marking studio */\n.beta-chip{display:inline-block;vertical-align:middle;margin-left:8px;font-size:11px;font-weight:600;\n  letter-spacing:.06em;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);\n  border-radius:99px;padding:2px 10px}\n.provider-card{margin:14px 0 18px}\n.providers{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;margin-bottom:12px}\n.provider{display:flex;gap:12px;align-items:center;text-align:left;cursor:pointer;font:inherit;\n  background:var(--page);border:2px solid var(--border);border-radius:12px;padding:12px 14px;color:var(--ink)}\n.provider svg{width:34px;height:34px;flex:0 0 auto;color:var(--muted)}\n.provider div{display:flex;flex-direction:column;gap:2px}\n.provider span{color:var(--ink-2);font-size:12px}\n.provider.on{border-color:var(--accent);background:var(--accent-wash)}\n.provider.on svg{color:var(--accent)}\n.keyfield{display:flex;gap:8px;align-items:center;flex-wrap:wrap}\n.keyfield input{padding:8px 10px;border-radius:8px;border:1px solid var(--border);\n  background:var(--page);color:var(--ink);font:inherit;width:260px}\n.nav-item.sub{padding-left:26px;font-size:12.5px;opacity:.85}\n/* assessment optimiser */\n.opt-flow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:16px 0 18px}\n.opt-step{background:var(--surface);border:1px solid var(--border);border-radius:99px;\n  padding:8px 16px 8px 8px;display:flex;gap:8px;align-items:center;font-size:13px;color:var(--ink-2)}\n.opt-n{width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;font-weight:700;\n  font-size:13px;display:flex;align-items:center;justify-content:center}\n.opt-arrow{color:var(--muted)}\n/* rubric editor */\n.rq .sublbl{display:block;margin:10px 0 6px;font-size:12px;color:var(--ink-2);text-transform:uppercase;letter-spacing:.05em}\n.crit-row,.band-row{display:flex;gap:8px;margin-bottom:6px;align-items:center}\n.crit-row input,.band-row input,.kv-edit input{padding:7px 10px;border-radius:8px;border:1px solid var(--border);\n  background:var(--page);color:var(--ink);font:inherit}\n.crit-point,.band-desc,.dn-note{flex:1}\n.crit-marks{width:64px}\n.mini{appearance:none;border:1px solid var(--border);background:var(--surface);color:var(--ink-2);\n  border-radius:8px;padding:5px 10px;font:inherit;font-size:12px;cursor:pointer}\n.mini.add{margin-top:2px;color:var(--accent);border-color:var(--accent)}\n.kv-edit{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0}\n.kv-edit label{color:var(--ink-2);font-size:12.5px}\n.kv-edit input{flex:1;min-width:140px}\n.sum-chip{font-size:12px;font-weight:600;border-radius:99px;padding:2px 10px;margin-left:6px}\n.sum-chip.ok{color:var(--accent);border:1px solid var(--accent)}\n.sum-chip.bad{color:#a15c00;border:1px solid #e79a41}\n.optways{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}\n.optway{background:var(--page);border:1px solid var(--border);border-radius:12px;padding:14px 16px}\n.optway h4{margin:0 0 4px;font-size:14px}\na.btn{text-decoration:none;display:inline-block}\n.beforeafter{display:flex;gap:26px;align-items:center;flex-wrap:wrap;margin:6px 0 14px}\n.beforeafter .ba{display:flex;gap:12px;align-items:center}\n.beforeafter .ba .lbl{color:var(--ink-2);font-size:12px;text-transform:uppercase;letter-spacing:.05em}\n.ba-arrow{font-size:26px;color:var(--accent)}\n.aim-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}\n.aim-step{position:relative}\n.aim-step .stepnum{position:absolute;top:10px;left:12px;width:24px;height:24px;border-radius:50%;\n  background:var(--accent);color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center}\n.aim-step.ok{border-color:var(--accent);border-style:solid}\n.aim-actions{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}\n.tool-go{margin-top:10px;padding:7px 14px;font-size:13px}\n.mark-total{font-size:26px;font-weight:700}\n.chip.review{border-color:#e79a41;color:#a15c00}\ntable.marks{border-collapse:collapse;width:100%;font-size:13px}\ntable.marks th{color:var(--ink-2);font-weight:500;text-align:left;border-bottom:1px solid var(--baseline);padding:6px 8px 6px 0}\ntable.marks td{border-bottom:1px solid var(--grid);padding:6px 8px 6px 0;vertical-align:top}\ntable.marks td.num{font-variant-numeric:tabular-nums;white-space:nowrap}\n.changes li{margin-bottom:6px}\n.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--accent);border-top-color:transparent;\n  border-radius:50%;animation:spin .8s linear infinite;vertical-align:-2px;margin-right:6px}\n@keyframes spin{to{transform:rotate(360deg)}}\n.tab-h{font-size:18px;margin:4px 0 12px}\n.muted{color:var(--muted)}\n.picker{padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);\n  color:var(--ink);font:inherit;margin-bottom:12px;max-width:340px}\n.card h4{margin:0 0 8px;font-size:13px;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em}\n.highlights{border-left:3px solid var(--accent)}\n.hi-lead{margin:0 0 14px;color:var(--ink-2)}\n.hi-cols{display:grid;grid-template-columns:1fr 1fr;gap:24px}\n@media(max-width:640px){.hi-cols{grid-template-columns:1fr}}\n.hi-list{list-style:none;margin:0;padding:0;line-height:1.9}\n.hi-list li{border-bottom:1px solid var(--grid);padding:3px 0}\n.hi-area{margin:0}\n.hpct{display:inline-block;min-width:38px;text-align:center;border-radius:4px;padding:0 6px;\n  font-variant-numeric:tabular-nums;font-size:12px}\n.concept{color:var(--ink-2);font-size:12.5px}\n.bars{display:flex;flex-direction:column;gap:6px}\n.bars .row{display:grid;grid-template-columns:230px 1fr 96px;gap:10px;align-items:center}\n@media(max-width:640px){.bars .row{grid-template-columns:130px 1fr 76px}}\n.bars .name{color:var(--ink-2);font-size:13px;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\n.bars .track{border-left:1px solid var(--baseline);height:16px}\n.bars .fill{height:16px;border-radius:0 4px 4px 0}\n.bars .val{font-variant-numeric:tabular-nums;font-size:13px}\n.spot-head{display:flex;align-items:center;gap:16px;margin:6px 0 16px}\n.spot-head .big{font-size:40px;font-weight:700;line-height:1}\n.spot-head .meta{color:var(--ink-2)}\ntable.clsq{border-collapse:separate;border-spacing:2px;width:100%}\ntable.clsq th{font-weight:500;color:var(--ink-2);font-size:11.5px;padding:2px 8px;text-align:center}\ntable.clsq th.rowh{text-align:left}\ntable.clsq td{height:26px;text-align:center;border-radius:4px;font-size:12px;padding:0 8px;font-variant-numeric:tabular-nums}\ntable.clsq td.num{background:none}\ntable.clsq td.neg{color:#c0392b}table.clsq td.pos{color:#1f7a44}\ntable.clsq td.concept-cell{background:none;text-align:left;color:var(--ink-2);font-size:12px}\ntable.clsq tr.flag td{background:rgba(208,59,59,.08)}\ntable.clsq tr.flag td.num.neg{font-weight:700}\n";
+const IMPROVE_PACK="You are upgrading a teacher's draft test so it is ready for reliable, auditable AI marking with Markable. Restructure it into Markable's markdown format:\n\n# <Test title>\ntest_id: <year>-<term>-<class>-<subject slug>   (invent a sensible one if absent)\nsubject: <subject>\nyear: <year level, if stated or inferable>\n\n## Q1 [<type>, <marks>]\n<question stem>\n\nRules \u2014 apply every one:\n1. UNIQUE STABLE IDS: number every question Q1, Q2 \u2026 (sub-parts Q6a, Q6b). Never renumber\n   an existing explicit ID; fill gaps around it.\n2. MARKS: every question states its marks in the header `[type, marks]`. If the draft\n   gives no allocation, infer a defensible one from the demand of the task and flag it\n   in the change log.\n3. TYPE each item as one of: mcq, short_answer, numerical, extended, diagram.\n   - mcq: exactly 4 options as `- A) \u2026` to `- D) \u2026`, mark the correct one with a trailing ` *`.\n     If the draft has a correct answer stated, use it; otherwise choose and flag it.\n   - numerical: the stem must ask students to show working AND give a final answer.\n   - extended: the stem should name the concepts/criteria the response must cover.\n   - diagram: the stem must say what must be drawn AND what must be labelled.\n4. ONE CONSTRUCT PER ITEM: split double-barrelled questions into sub-parts (Q3a, Q3b),\n   preserving the original intent and total marks.\n5. UNAMBIGUOUS STEMS: tighten wording only where a marker could not judge the answer\n   reliably (undefined referents, missing units, \"discuss\" with no criteria). Keep the\n   teacher's voice everywhere else.\n6. PRESERVE THE ASSESSMENT: same topics, same difficulty, same intent. Do not add new\n   questions, delete questions, or change what is being assessed. Restructure, don't rewrite.\n7. CHANGE LOG: report every change you made as {question_id, change, reason} \u2014 including\n   every inference (marks, mcq answer, type) the teacher must verify.\n\nReturn JSON: improved_markdown (the complete upgraded test), changes (the log),\nsummary (2-3 sentences for the teacher).";
+const IMPROVE_SCHEMA={"type": "object", "properties": {"improved_markdown": {"type": "string"}, "changes": {"type": "array", "items": {"type": "object", "properties": {"question_id": {"type": "string"}, "change": {"type": "string"}, "reason": {"type": "string"}}, "required": ["question_id", "change", "reason"], "additionalProperties": false}}, "summary": {"type": "string"}}, "required": ["improved_markdown", "changes", "summary"], "additionalProperties": false};
+const RUBRIC_PACK="You are drafting the marking key (rubric) for a teacher's test so it can be marked reliably and consistently \u2014 by an AI marker with human review, or by a colleague. For EVERY question in the test, produce one key entry:\n\n1. TYPE each item: mcq, short_answer, numerical, extended, or diagram (respect any type\n   already stated in the question header).\n2. MARKS: use the marks stated on the question. Criteria marks MUST sum exactly to the\n   question's marks.\n3. mcq \u2192 give `correct` (the option letter) and a short `distractor_notes` entry for each\n   wrong option explaining the misconception it represents.\n4. short_answer / diagram \u2192 1 criterion per mark: each `point` must be a single observable,\n   gradeable statement (what must be present to earn that mark), plus `accept` (alternative\n   correct wordings/values) and `reject` (common wrong answers that earn nothing).\n5. numerical \u2192 criteria for working AND the `final_answer` (with units) plus a sensible\n   `tolerance` where rounding is possible; include an error-carried-forward criterion where\n   appropriate.\n6. extended \u2192 criteria for the required content AND 3-4 `rubric` bands (band label +\n   descriptor) describing quality levels from partial to full.\n7. GROUND EVERYTHING IN THE TEST: never invent content the test doesn't assess. If the test\n   doesn't state the correct answer and you had to infer it, add a note to `verify` \u2014\n   the teacher must confirm every inference before marking.\n8. IDs: use the question IDs exactly as they appear (Q1, Q6a \u2026).\n\nReturn JSON: test_id (from the test, or invent a sensible slug), total_marks,\nquestions (the key entries), verify (list of {question_id, note} the teacher must check).";
+const RUBRIC_SCHEMA={"type": "object", "properties": {"test_id": {"type": "string"}, "total_marks": {"type": "integer"}, "questions": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "type": {"type": "string", "enum": ["mcq", "short_answer", "numerical", "extended", "diagram"]}, "marks": {"type": "integer"}, "correct": {"type": ["string", "null"]}, "distractor_notes": {"type": "array", "items": {"type": "object", "properties": {"option": {"type": "string"}, "note": {"type": "string"}}, "required": ["option", "note"], "additionalProperties": false}}, "criteria": {"type": "array", "items": {"type": "object", "properties": {"point": {"type": "string"}, "marks": {"type": "integer"}}, "required": ["point", "marks"], "additionalProperties": false}}, "accept": {"type": "array", "items": {"type": "string"}}, "reject": {"type": "array", "items": {"type": "string"}}, "final_answer": {"type": ["string", "null"]}, "tolerance": {"type": ["number", "null"]}, "rubric": {"type": "array", "items": {"type": "object", "properties": {"band": {"type": "string"}, "descriptor": {"type": "string"}}, "required": ["band", "descriptor"], "additionalProperties": false}}}, "required": ["id", "type", "marks", "correct", "distractor_notes", "criteria", "accept", "reject", "final_answer", "tolerance", "rubric"], "additionalProperties": false}}, "verify": {"type": "array", "items": {"type": "object", "properties": {"question_id": {"type": "string"}, "note": {"type": "string"}}, "required": ["question_id", "note"], "additionalProperties": false}}}, "required": ["test_id", "total_marks", "questions", "verify"], "additionalProperties": false};
 
-
-# --- Client-side engine: ZIP inflate, XLSX/DOCX parse, dashboard + readiness ---
-_JS = r"""
 function $(id){return document.getElementById(id)}
 function navToggle(){const n=document.querySelector('.nav');const open=n.classList.toggle('open');$('nav-toggle').setAttribute('aria-expanded',open)}
 function show(view, btn){
@@ -2442,4 +2248,5 @@ function rubricPasteBack(){
   const rc=$('remember-creds');if(rc)rc.checked=rememberOn();
   document.querySelectorAll('.prov-name').forEach(e=>e.textContent=provName());
 })();
-"""
+</script>
+</body></html>

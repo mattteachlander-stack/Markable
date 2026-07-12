@@ -102,6 +102,71 @@ def test_assessment_optimiser_page():
         assert el in html, el
 
 
+def test_p0_credential_safety():
+    """Keys default to session-only storage; custom endpoints are HTTPS +
+    allowlist validated; clear-credential control exists; destination shown."""
+    html = render_studio()
+    for el in ("sessionStorage", "credStore", "rememberOn", "migrateLegacyCreds",
+               "clearCreds", "remember-creds", "validateEndpoint",
+               "Endpoint must use HTTPS", "DEFAULT_HOST_SUFFIXES", "endpointHost"):
+        assert el in html, el
+
+
+def test_p0_consent_and_transport():
+    """Every cloud send is gated by an explicit consent dialog naming the
+    destination host; transport retries once on rate-limit/5xx."""
+    html = render_studio()
+    for el in ("cloudConsent", "consent-overlay", "cloudDestination",
+               "Nothing is sent until you confirm", "CLOUD_CANCEL", "AI_MODELS"):
+        assert el in html, el
+    # all three cloud actions are gated
+    assert html.count("await cloudConsent(") >= 3
+
+
+def test_p0_marking_validation_and_review():
+    """Deterministic validation independent of the model's flags, plus a
+    review→finalise workflow that gates the export."""
+    html = render_studio()
+    for el in ("validateResult", "REVIEW_CONF", "clamped", "j._review",
+               "mAccept", "mOverride", "override_reason", "paintMarks",
+               "exportMarks", "proposed_marks,final_marks", "MAX_SCAN_MB"):
+        assert el in html, el
+
+
+def test_p0_answer_leak_protection():
+    """Student exports strip answer markers and are blocked if leaks remain;
+    teacher master is labelled."""
+    html = render_studio()
+    for el in ("stripAnswerMarkers", "detectAnswerLeaks", "leak-box",
+               "STUDENT COPY", "TEACHER MASTER", "opt-aud",
+               "Student download blocked"):
+        assert el in html, el
+
+
+def test_p0_data_identity_and_import_warnings():
+    """Dynamic sheet bounds, ID-based identity, duplicate detection, marks
+    range checks — all surfaced in a visible banner, never silent."""
+    html = render_studio()
+    for el in ("gridExtents", "warn-banner", "Duplicate student ID",
+               "kept separate using their IDs", "exceeds the /",
+               "No ID column found", "Duplicate question label"):
+        assert el in html, el
+    # DOCX honest-extraction warnings
+    for el in ("DOC_WARNS", "NOT extracted", "docWarnSuffix"):
+        assert el in html, el
+
+
+def test_p0_labelling_and_a11y():
+    """LOCAL/CLOUD/CLI chips, scoped privacy copy, aria-live statuses,
+    focus-visible, mobile nav."""
+    html = render_studio()
+    assert html.count("mode-chip") >= 6
+    assert "Nothing is uploaded anywhere" not in html  # replaced by scoped copy
+    assert 'role="status" aria-live="polite"' in html
+    assert "focus-visible" in html and "nav-toggle" in html and "aria-expanded" in html
+    assert "SUGGESTED MAPPING" in html  # curriculum mappings labelled as proposals
+
+
 def test_rubric_builder_page():
     """Rubric builder: test → AI-drafted key → editable UI → key.yaml /
     printable export, plus the no-key prompt path."""

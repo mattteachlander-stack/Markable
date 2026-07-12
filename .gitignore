@@ -5,7 +5,7 @@ __pycache__/
 .eggs/
 # Python build artifacts at the repo root only — NOT src/markable/build/ (a package).
 /build/
-/dist/
+# /dist/ — dist/markable.html is a tracked release artifact
 .venv/
 venv/
 

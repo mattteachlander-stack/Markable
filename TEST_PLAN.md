@@ -2,7 +2,7 @@
 
 ## Current automated coverage (all offline, no API key)
 
-**Python unit/fixture tests — `uv run pytest` (93 tests)**
+**Python unit/fixture tests — `uv run pytest` (96 tests, incl. the node-bridge)**
 - Ingest/question detection & marks parsing: `test_ingest.py`
 - Build determinism, manifest/zone geometry: `test_build.py`, `test_qr.py`
 - Scan round trip (rasterise → deskew → QR → crop, incl. 180° noisy scan):
@@ -20,7 +20,7 @@
   `test_rubric.py`
 - Hub template contracts incl. **all P0 guards** (leak detection, consent,
   credential policy, validation, identity warnings, labelling, a11y hooks):
-  `test_studio.py` (20 tests)
+  `test_studio.py` (16 tests)
 
 **Browser E2E — Playwright scripts (scratchpad `pw_*.py`, run against the
 built hub in Chromium)**
@@ -45,7 +45,7 @@ built hub in Chromium)**
 | Malicious filenames / spreadsheet text (HTML injection) | fixture with `<img onerror>` strings in cells; assert escaped rendering | P1 |
 | Duplicate students end-to-end in browser | xlsx fixture with same-name/diff-ID rows; assert banner + no merge | P1 |
 | Keyboard-only full journey + axe-core | Playwright a11y suite in CI | P1 |
-| JS unit tests (node --test) | after P1-1 extraction | P1 |
+| ~~JS unit tests (node --test)~~ | ✅ `tests/js/pure.test.mjs` (6 tests) | done |
 | Gold-dataset eval harness | see AI_MARKING_EVALUATION_PLAN.md | P2 |
 
 ## E2E teacher journey (scripted, to run before each pilot build)

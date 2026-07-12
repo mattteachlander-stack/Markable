@@ -35,12 +35,13 @@ privacy = `anon.py` + JS credential/consent layer; exports = report generators
 
 ## Known architectural debt
 
-The browser engine (~2,000 lines of JS) lives inside `studio_html.py` as
-Python string literals. It is exercised end-to-end by Playwright but has no
-JS-level unit tests. **P1-1**: move it to `src/markable/webapp/*.js`
-(app/, importers/, marking/, review/, privacy/, exports/), concatenated by the
-build; test with `node --test`. No framework — plain JS is sufficient. Any
-third-party parser (P1-2) must be vendored into the bundle, never CDN-loaded.
+~~The browser engine lives inside `studio_html.py` as string literals~~ —
+**resolved (P1-1)**: the engine now lives in `src/markable/webapp/*.js`
+(00-pure … 10-init), concatenated at build into one `<script>` so declaration
+hoisting is unchanged; `00-pure.js` (validators, leak detection, exporters,
+key.yaml round-trip) carries a CommonJS guard and is unit-tested with
+`node --test tests/js`. Remaining: vendored spreadsheet parser (P1-2) must be
+bundled, never CDN-loaded.
 
 ## Build
 

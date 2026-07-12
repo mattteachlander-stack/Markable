@@ -1,5 +1,29 @@
 # CHANGELOG.md
 
+## Council P1 pass (this release, follows the P0 pass below)
+
+- **Modular JS source (P1-1)**: the browser engine now lives in
+  `src/markable/webapp/*.js` (11 modules incl. a dependency-free `00-pure.js`),
+  concatenated at build into the single-file hub; `node --test tests/js` unit
+  suite (6 tests) runs the pure module directly, bridged into pytest.
+- **Structured-key reconciliation (P1-3)**: uploading a Markable `key.yaml`
+  (or the new "Use this key in the marking studio" hand-off from the Rubric
+  builder) turns on deterministic reconciliation — missing questions are
+  injected as review items, unknown question IDs flagged, marks_available
+  corrected to the key's values.
+- **Mapping states (P1-5)**: browser curriculum mappings now report
+  suggested / **ambiguous** (two near-equal candidates, chip + explanation) /
+  unmapped; confirmed remains the CLI teacher-map path.
+- **Review queue at scale (P1-6)**: All / Needs review / Resolved filters and
+  a confirm-gated "Accept all remaining flagged" bulk action (recorded as
+  `accepted (bulk)` in the audit CSV).
+- **Scans management (P1-7)**: per-file list with sizes and remove buttons.
+- **A11y (P1-8 slice)**: consent dialog Escape-to-cancel + focus cycling.
+- **Small-cohort caveats (P1-9)**: n<10 chips on per-assessment analysis.
+- **Three-workspace IA (P1-10)**: landing opens with Analyse locally / Build
+  an assessment / Mark & review; nav headings numbered to match; version +
+  build-date stamp in the footer.
+
 ## Council P0 hardening pass (this release)
 
 ### Safety & privacy

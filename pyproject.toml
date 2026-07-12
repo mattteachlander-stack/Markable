@@ -57,6 +57,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/markable"]
+artifacts = ["src/markable/webapp/*.js"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

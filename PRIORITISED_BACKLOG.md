@@ -17,20 +17,20 @@ Status legend: ✅ done in this pass · ▶ open.
 | P0-9 ✅ | No size caps / cancel / retry | 20 MB per-scan cap with per-file message; Cancel between scripts; one retry w/ backoff on 429/5xx | `studio_html.py` | S | Oversized scan blocked; cancel stops the queue | `pw_p0.py` |
 | P0-10 ✅ | Feature claims unlabelled | LOCAL / CLOUD / CLI chips; scan/build cards marked CLI; mappings marked SUGGESTED; "nothing uploaded" copy removed/rescoped | `studio_html.py` | S | No global "nothing is uploaded" claim remains | `test_p0_labelling_and_a11y` |
 
-## P1 — teacher pilot quality (open)
+## P1 — teacher pilot quality (mostly ✅ this pass; P1-2, P1-4, P1-8 remain open)
 
 | # | Problem | Proposed solution | Files | Cx | Acceptance |
 |---|---------|-------------------|-------|----|-----------|
-| P1-1 ▶ | Embedded JS untestable as JS | Extract to `src/markable/webapp/*.js`, concat at build, `node --test` unit suite | studio_html.py → webapp/ | H | JS unit tests run in CI; built hub byte-equivalent behaviour |
+| P1-1 ✅ | Embedded JS untestable as JS | Extract to `src/markable/webapp/*.js`, concat at build, `node --test` unit suite | studio_html.py → webapp/ | H | JS unit tests run in CI; built hub byte-equivalent behaviour |
 | P1-2 ▶ | Handwritten XLSX parser vs merged cells/styles | Bundle a maintained parser (vendored, no CDN) behind the same `parseXlsx` API; fixture tests | webapp/importers | M | merged-cell + formula fixtures parse correctly |
-| P1-3 ▶ | Structured-key reconciliation in browser marking | Accept key.yaml from Rubric builder; check expected vs returned QIDs, marks_available vs key; missing-question flags | studio_html.py | M | Missing/extra question ⇒ review flag per script |
+| P1-3 ✅ | Structured-key reconciliation in browser marking | Accept key.yaml from Rubric builder; check expected vs returned QIDs, marks_available vs key; missing-question flags | studio_html.py | M | Missing/extra question ⇒ review flag per script |
 | P1-4 ▶ | Criterion-level marking schema | Per-criterion judgements (id, marks, evidence) + deterministic totals; teacher review at criterion level | MARK_SCHEMA, aimark | H | Criteria sum enforced; per-criterion display |
-| P1-5 ▶ | Four-state curriculum mapping | confirmed / suggested / ambiguous / unmapped states end-to-end incl. browser import of a teacher map | curriculum.py, studio | M | Legend + per-question state everywhere mappings shown |
-| P1-6 ▶ | Review-queue UX at scale | Filters (student/question/flag type), keyboard shortcuts, bulk-accept for identical MCQ flags | studio_html.py | M | 100-item queue triaged < 10 min |
-| P1-7 ▶ | Scans list management | Remove/reorder files, per-file size + (PDF) page count, thumbnails | aimark | S–M | Files removable before consent |
+| P1-5 ✅ (browser: suggested/ambiguous/unmapped; confirmed remains CLI --map) | Four-state curriculum mapping | confirmed / suggested / ambiguous / unmapped states end-to-end incl. browser import of a teacher map | curriculum.py, studio | M | Legend + per-question state everywhere mappings shown |
+| P1-6 ✅ (filters + bulk accept) | Review-queue UX at scale | Filters (student/question/flag type), keyboard shortcuts, bulk-accept for identical MCQ flags | studio_html.py | M | 100-item queue triaged < 10 min |
+| P1-7 ✅ (list/remove/sizes; reorder & PDF page count still open) | Scans list management | Remove/reorder files, per-file size + (PDF) page count, thumbnails | aimark | S–M | Files removable before consent |
 | P1-8 ▶ | WCAG 2.2 AA sweep | axe-core in Playwright CI; contrast tokens; focus trap in modal; table header scopes | CSS/JS | M | axe: no serious/critical violations |
-| P1-9 ▶ | Small-cohort stats caveats | n<10 ⇒ "insufficient n" chips on facility/discrimination | gradebook_html, studio | S | Chips render for small n |
-| P1-10 ▶ | Three-workspace IA + progress | Home reduced to Analyse / Build / Mark cards with step indicators | studio_html.py | M | Usability walkthrough passes |
+| P1-9 ✅ (browser hub) | Small-cohort stats caveats | n<10 ⇒ "insufficient n" chips on facility/discrimination | gradebook_html, studio | S | Chips render for small n |
+| P1-10 ✅ (workspaces strip + numbered nav) | Three-workspace IA + progress | Home reduced to Analyse / Build / Mark cards with step indicators | studio_html.py | M | Usability walkthrough passes |
 
 ## P2 — production readiness (open)
 

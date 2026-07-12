@@ -167,6 +167,33 @@ def test_p0_labelling_and_a11y():
     assert "SUGGESTED MAPPING" in html  # curriculum mappings labelled as proposals
 
 
+def test_p1_pilot_quality_features():
+    """P1: structured-key reconciliation, mapping states, review filters +
+    bulk accept, scans list management, modal keys, small-n caveat,
+    three-workspace IA, version stamp, modular JS source."""
+    html = render_studio()
+    for el in ("parseKeyYaml", "AIM.structKey", "reconciliation",
+               "missing from the AI response", "not in the marking key",
+               "useKeyInMarking",                       # rubric → marking hand-off
+               "autoAreaScored", "ambiguous",           # mapping states
+               "setMFilter", "mAcceptAll",              # review filters + bulk
+               "aim-scans-list", "rmScan",              # scans management
+               "Escape",                                # modal esc
+               "small cohort n=",                       # small-n caveat
+               "workspaces", "Analyse locally", "Mark &amp; review",
+               "built 20"):                             # version stamp
+        assert el in html, el
+
+
+def test_js_source_is_modular():
+    from pathlib import Path as _P
+    webapp = _P(__file__).resolve().parents[1] / "src" / "markable" / "webapp"
+    files = sorted(f.name for f in webapp.glob("*.js"))
+    assert "00-pure.js" in files and len(files) >= 10
+    # pure module carries the node export guard
+    assert "module.exports" in (webapp / "00-pure.js").read_text(encoding="utf-8")
+
+
 def test_rubric_builder_page():
     """Rubric builder: test → AI-drafted key → editable UI → key.yaml /
     printable export, plus the no-key prompt path."""
